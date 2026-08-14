@@ -164,3 +164,24 @@ async def test_nsfw_checkpoint_auto_switch() -> None:
     wf2 = provider._load_workflow()
     provider._inject(wf2, ImageRequest(prompt="p", nsfw=False))
     assert ckpt_of(wf2) == "sfw_model.safetensors"
+
+
+async def test_photo_intent_without_command(ctx: AppContext, dp, bot) -> None:
+    """«Сгенерируй фото ...» без /photo запускает генерацию картинки."""
+    from tests.conftest import make_update_message, onboard, tg_user
+
+    user_a = tg_user(8109, "Nina")
+    await onboard(ctx, 8109)
+    await dp.feed_update(bot, make_update_message(8109, user_a, "Сгенерируй фото Леи на пляже"))
+    assert "создаётся" in bot.last_text()
+    async with ctx.db.session() as session:
+        jobs = await JobRepository(session).queued_jobs()
+        assert len(jobs) == 1
+        assert "пляж" in jobs[0].request_text.lower()
+
+
+async def test_photo_intent_nariсуй(ctx: AppContext, dp, bot) -> None:
+    user_a = tg_user(8110, "Olga")
+    await onboard(ctx, 8110)
+    await dp.feed_update(bot, make_update_message(8110, user_a, "Нарисуй Лею в вечернем платье"))
+    assert "создаётся" in bot.last_text()

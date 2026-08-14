@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 
 from aiogram import Bot, F, Router
 from aiogram.filters import StateFilter
@@ -18,6 +19,14 @@ from src.providers.base import LLMUnavailable
 logger = logging.getLogger(__name__)
 
 router = Router()
+
+# Фразы, по которым бот понимает «пользователь хочет картинку» без команды /photo
+_PHOTO_INTENT = re.compile(
+    r"^(нарисуй|нарисуй-ка|сгенерируй|сгенерируй-ка|покажи|сделай|создай|создай-ка|"
+    r"хочу\s+(увидеть|картинку|фото|рисунок)|дай\s+(картинку|фото|рисунок)|"
+    r"картинку|фотографию|изобрази)\b",
+    re.IGNORECASE,
+)
 
 # Пока пользователь редактирует настройки — его тексты идут в FSM-хендлеры
 _FSM_STATES = (
@@ -67,6 +76,17 @@ async def on_text(message: Message, bot: Bot, app_ctx: AppContext, user: DbUser 
             chat_id=message.chat.id,
             text=f"Сообщение слишком длинное (максимум {app_ctx.settings.max_message_length} символов).",
         )
+        return
+
+    # Пользователь просит картинку без команды /photo — запускаем генерацию
+    if _PHOTO_INTENT.search(text):
+        # убираем «служебные» слова, оставляем описание
+        prompt = _PHOTO_INTENT.sub("", text).strip(" ,.!?:;-")
+        if not prompt:
+            prompt = text
+        from src.bot.handlers.commands import _submit_photo
+
+        await _submit_photo(message, bot, app_ctx, user, prompt)
         return
 
     try:

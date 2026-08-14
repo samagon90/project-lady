@@ -21,7 +21,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 VENV_PY = ROOT / ".venv" / "Scripts" / "python.exe"
-VERSION = "0.2.4"
+VERSION = "0.2.5"
 
 try:
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
