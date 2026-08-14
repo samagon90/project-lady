@@ -13,6 +13,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
+APP_VERSION = "0.2.6"
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(

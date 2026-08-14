@@ -79,6 +79,16 @@ async def cmd_help(message: Message, bot: Bot) -> None:
     )
 
 
+@router.message(Command("version"))
+async def cmd_version(message: Message, bot: Bot) -> None:
+    from src.config import APP_VERSION
+
+    await bot.send_message(
+        chat_id=message.chat.id,
+        text=f"🤖 Версия бота: {APP_VERSION}\nУстановщика: см. шапку окна при запуске.",
+    )
+
+
 @router.message(Command("cancel"))
 async def cmd_cancel(message: Message, bot: Bot, state: FSMContext) -> None:
     if await state.get_state() is None:
