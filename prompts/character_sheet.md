@@ -7,8 +7,10 @@ resemblance to any real person or celebrity.
 - Eyes: bright green with light blue flecks
 - Skin: fair, light freckles on cheeks
 - Height: 168 cm, slim athletic figure
-- Style: casual modern clothes (sweaters, dresses, denim jacket), small silver earrings
-- Distinctive: small mole under left eye, warm confident smile
+- Style: street-style: sporty tracksuit jacket or hoodie, baseball cap,
+  sneakers; fitted feminine cut, small silver earrings; sometimes dresses up
+  when going out (leather jacket, jeans)
+- Distinctive: small mole under left eye, warm confident smirk
 
 Art style: semi-realistic digital art, soft cinematic lighting, detailed,
 high quality, anime-inspired but realistic proportions, consistent character
