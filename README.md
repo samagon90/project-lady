@@ -216,7 +216,7 @@ pip install -r requirements.txt
 #   (или huggingface.co/Lykon/dreamshaper-8) — положите в ComfyUI/models/checkpoints/
 
 # Запуск с доступом для бота:
-python main.py --listen 0.0.0.0 --port 8188
+python main.py --listen 0.0.0.0 --port 8188 --cpu
 ```
 
 Бот шлёт workflow из `workflows/comfyui_leya_sd15.json`, подставляя значения в узлы

@@ -21,7 +21,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 VENV_PY = ROOT / ".venv" / "Scripts" / "python.exe"
-VERSION = "0.2.2"
+VERSION = "0.2.4"
 
 try:
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -343,8 +343,23 @@ def ensure_comfyui() -> None:
             print(f"✅ В .env записано: COMFYUI_NSFW_CHECKPOINT={target.name}")
     print()
     print("Запускать ComfyUI так (каждый раз, когда нужны картинки):")
-    print(f'  {comfy_py} "{comfy_dir / "main.py"}" --listen 127.0.0.1 --port 8188')
-    print("Или скопируйте файл start_comfyui.bat из папки бота в папку ComfyUI.")
+    print(f'  {comfy_py} "{comfy_dir / "main.py"}" --listen 127.0.0.1 --port 8188 --cpu')
+    print()
+    # Кладём готовый start_comfyui.bat (с CPU-флагом) прямо в папку ComfyUI —
+    # на машинах без NVIDIA-видеокарты без --cpu ComfyUI падает.
+    bat = comfy_dir / "start_comfyui.bat"
+    try:
+        bat.write_text(
+            '@echo off\r\ntitle ComfyUI (CPU mode)\r\ncd /d "%~dp0"\r\n'
+            'venv\\Scripts\\python.exe main.py --listen 127.0.0.1 --port 8188 --cpu\r\n'
+            'pause\r\n',
+            encoding="ascii",
+        )
+        print(f"Готовый файл запуска создан: {bat}")
+        print("Двойной клик по нему — и ComfyUI работает (CPU-режим).")
+    except OSError as exc:
+        print(f"⚠️ Не удалось создать start_comfyui.bat: {exc}")
+        print("Скопируйте файл start_comfyui.bat из папки бота в папку ComfyUI.")
 
 
 # ================================================================== установка всего
