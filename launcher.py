@@ -21,7 +21,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 VENV_PY = ROOT / ".venv" / "Scripts" / "python.exe"
-VERSION = "0.2.1"
+VERSION = "0.2.2"
 
 try:
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -150,15 +150,20 @@ def pull_models() -> None:
     choice = ask(
         "Какую модель скачать? (от этого зависит «раскованность» Леи)",
         {
-            "abl": "Развратная без цензуры (huihui_ai/qwen2.5-abliterate:7b, ~5 ГБ) — рекомендую",
+            "abl": "Без цензуры (dolphin-llama3:8b, ~4.7 ГБ) — надёжная, рекомендую",
+            "qabl": "Без цензуры Qwen (huihui_ai/qwen2.5-abliterate:7b, ~5 ГБ) — ВНИМАНИЕ: может отвечать иероглифами",
             "3b": "Компактная (qwen2.5:3b, ~2 ГБ) — для слабых ПК",
-            "7b": "Стандартная (qwen2.5:7b, ~5 ГБ) — цензура встроена, NSFW хуже",
+            "7b": "Стандартная (qwen2.5:7b, ~5 ГБ) — цензура встроена, но надёжная",
         },
     )
     candidates = {
         "abl": [
+            "dolphin-llama3:8b",
+            "qwen2.5:7b",             # запас: надёжная, цензура
+        ],
+        "qabl": [
             "huihui_ai/qwen2.5-abliterate:7b",
-            "dolphin-llama3:8b",      # запасная «раскованная» модель
+            "dolphin-llama3:8b",      # запас
             "qwen2.5:7b",             # крайний запас
         ],
         "3b": ["qwen2.5:3b"],
@@ -167,10 +172,14 @@ def pull_models() -> None:
     chosen = None
     for model in candidates:
         print(f"\nСкачиваю модель {model}... это 2-30 минут, не выключайте компьютер.")
-        if run(["ollama", "pull", model]) == 0:
+        if run(["ollama", "pull", model]) != 0:
+            print(f"⚠️ Не удалось скачать {model}. Пробую следующую...")
+            continue
+        # Проверяем, что модель реально отвечает по-русски (не иероглифами)
+        if llm_speaks_russian(model):
             chosen = model
             break
-        print(f"⚠️ Не удалось скачать {model}. Пробую следующую...")
+        print(f"⚠️ Модель {model} скачалась, но отвечает не по-русски. Пробую следующую...")
     if chosen is None:
         print("❌ Ни одна модель не скачалась. Проверьте интернет и повторите позже.")
         return
@@ -454,20 +463,21 @@ def llm_model_installed() -> bool:
     return model in names
 
 
-def llm_speaks_russian() -> bool:
-    """Проверяет, что модель из .env реально отвечает по-русски (не кракозябры).
+def llm_speaks_russian(model: str | None = None) -> bool:
+    """Проверяет, что модель реально отвечает по-русски (не иероглифами).
 
     Делает короткий запрос к Ollama и проверяет, что в ответе есть
-    русские буквы. Если модель отвечает иероглифами или не отвечает —
-    возвращает False (установщик предложит другую модель).
+    русские буквы и нет иероглифов. Если модель отвечает по-китайски
+    или не отвечает — возвращает False (установщик предложит другую).
     """
-    model = ""
-    env = ROOT / ".env"
-    if env.exists():
-        for line in env.read_text(encoding="utf-8", errors="replace").splitlines():
-            line = line.strip()
-            if line.startswith("LLM_MODEL="):
-                model = line.split("=", 1)[1].strip()
+    if model is None:
+        model = ""
+        env = ROOT / ".env"
+        if env.exists():
+            for line in env.read_text(encoding="utf-8", errors="replace").splitlines():
+                line = line.strip()
+                if line.startswith("LLM_MODEL="):
+                    model = line.split("=", 1)[1].strip()
     if not model or not shutil.which("ollama"):
         return False
     try:
@@ -479,9 +489,13 @@ def llm_speaks_russian() -> bool:
         reply = (out.stdout or out.stderr) or ""
     except Exception:  # noqa: BLE001
         return False
-    # Проверяем наличие русских букв (кириллица в диапазоне 0x0400-0x04FF)
+    # Русские буквы есть И иероглифов нет
     has_cyrillic = any("\u0400" <= ch <= "\u04FF" for ch in reply)
-    return has_cyrillic
+    has_cjk = any(
+        0x4E00 <= ord(ch) <= 0x9FFF or 0x3040 <= ord(ch) <= 0x30FF
+        for ch in reply
+    )
+    return has_cyrillic and not has_cjk
 
 
 def check_components() -> None:

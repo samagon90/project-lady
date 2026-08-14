@@ -48,6 +48,8 @@ class FakeLLM:
         image_prompt: dict | None = None,
         echo_memory: bool = False,
         fail: bool = False,
+        chinese_first: bool = False,
+        chinese_only: bool = False,
     ) -> None:
         self.default_reply = default_reply
         self.extraction_facts = extraction_facts or []
@@ -63,12 +65,25 @@ class FakeLLM:
         }
         self.echo_memory = echo_memory
         self.fail = fail
+        self.chinese_first = chinese_first
+        self.chinese_only = chinese_only
         self.calls: list[list[dict[str, str]]] = []
+
+    def _maybe_chinese(self) -> str | None:
+        """Симуляция глючной модели, отвечающей иероглифами."""
+        if self.chinese_only:
+            return "判断过程中，我将用户请求与提供的答案进行了匹配。"
+        if self.chinese_first and len(self.calls) <= 1:
+            return "判断过程中，我将用户请求与提供的答案进行了匹配。"
+        return None
 
     async def chat(self, messages, *, temperature=None, max_tokens=None) -> str:
         self.calls.append(messages)
         if self.fail:
             raise LLMUnavailable("ollama down")
+        chinese = self._maybe_chinese()
+        if chinese is not None:
+            return chinese
         last_user = next((m["content"] for m in reversed(messages) if m["role"] == "user"), "")
         if "модератор контента" in last_user:
             return '{"blocked": false, "reason_code": "", "reason_text": ""}'

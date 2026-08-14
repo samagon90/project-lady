@@ -107,6 +107,25 @@ def truncate(text: str, limit: int) -> str:
     return text[: limit - 1].rstrip() + "…"
 
 
+def contains_cjk(text: str) -> bool:
+    """Есть ли в тексте иероглифы (китайские/японские/корейские символы).
+
+    Нужно для защиты от глючных моделей, которые «слетают» на китайский:
+    если ответ модели содержит иероглифы — бот переспросит по-русски.
+    """
+    for char in text:
+        code = ord(char)
+        if (
+            0x4E00 <= code <= 0x9FFF      # CJK Unified Ideographs
+            or 0x3400 <= code <= 0x4DBF  # CJK Extension A
+            or 0xF900 <= code <= 0xFAFF  # CJK Compatibility
+            or 0x3040 <= code <= 0x30FF  # Hiragana + Katakana
+            or 0xAC00 <= code <= 0xD7AF  # Hangul
+        ):
+            return True
+    return False
+
+
 def age_seconds(then: datetime) -> float:
     return (utcnow() - then).total_seconds()
 

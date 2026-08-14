@@ -112,3 +112,23 @@ async def test_rate_limit_bucket_cleanup(settings, bot) -> None:
     await middleware(handler, event, {"bot": bot})
     # корзина опустела из-за истечения окна -> удалена из памяти
     assert 4455 not in middleware._buckets
+
+
+async def test_cjk_garbage_auto_retry(ctx: AppContext, dp, bot, fake_llm) -> None:
+    """Если модель ответила иероглифами — бот переспрашивает и отдаёт русский."""
+    fake_llm.chinese_first = True
+    fake_llm.default_reply = "Привет, красотка!"
+    await onboard(ctx, 9991)
+    user_a = tg_user(9991, "Q")
+    await dp.feed_update(bot, make_update_message(9991, user_a, "привет"))
+    assert bot.last_text() == "Привет, красотка!"
+
+
+async def test_cjk_garbage_fallback_message(ctx: AppContext, dp, bot, fake_llm) -> None:
+    """Если модель всегда отвечает иероглифами — понятное сообщение со сменой модели."""
+    fake_llm.chinese_only = True
+    await onboard(ctx, 9992)
+    user_a = tg_user(9992, "W")
+    await dp.feed_update(bot, make_update_message(9992, user_a, "привет"))
+    text = bot.last_text()
+    assert "LLM_MODEL" in text and "русск" in text

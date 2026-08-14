@@ -160,8 +160,8 @@ curl -fsSL https://ollama.com/install.sh | sh
 # Модель для общения (любая; примеры: qwen2.5:7b, gemma2:9b, llama3.1:8b, mistral:7b):
 ollama pull qwen2.5:7b
 # Для максимально раскованного NSFW (без встроенной цензуры):
-#   ollama pull huihui_ai/qwen2.5-abliterate:7b
-#   затем в .env: LLM_MODEL=huihui_ai/qwen2.5-abliterate:7b
+#   ollama pull dolphin-llama3:8b
+#   затем в .env: LLM_MODEL=dolphin-llama3:8b
 
 # Модель для embeddings (семантическая память):
 ollama pull nomic-embed-text
@@ -392,7 +392,7 @@ fallback TTS, rate limiting, очистку временных файлов.
 | Голос не отправляется | `piper` в PATH (`which piper`), `make voice`, ffmpeg установлен |
 | Картинки не генерируются | ComfyUI запущен (`curl http://127.0.0.1:8188/system_stats`), checkpoint скачан, имя совпадает с `COMFYUI_CHECKPOINT` |
 | Бот не отвечает в группе | Это by design: личные сообщения только |
-| Бот отвечает слишком скромно / «замкнуто», отказывает в NSFW | Встроенная цензура модели (qwen2.5 и др. «причёсаны») | Поставьте модель без цензуры: `ollama pull huihui_ai/qwen2.5-abliterate:7b`, затем в `.env`: `LLM_MODEL=huihui_ai/qwen2.5-abliterate:7b`, перезапустите бота. Также помогает `/reset` — старые «скромные» сообщения уходят из контекста |
+| Бот отвечает слишком скромно / «замкнуто», отказывает в NSFW | Встроенная цензура модели (qwen2.5 и др. «причёсаны») | Поставьте модель без цензуры: `ollama pull dolphin-llama3:8b`, затем в `.env`: `LLM_MODEL=dolphin-llama3:8b`, перезапустите бота. Также помогает `/reset` — старые «скромные» сообщения уходят из контекста |
 | Ошибка миграций | `rm -f data/bot.db && make migrate` (или проверьте права на `data/`) |
 
 ---

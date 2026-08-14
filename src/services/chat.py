@@ -23,7 +23,7 @@ from src.providers.base import LLMProvider, LLMUnavailable
 from src.services.audit import AuditService
 from src.services.memory import MemoryService
 from src.services.moderation import ModerationService
-from src.utils import truncate
+from src.utils import contains_cjk, truncate
 
 logger = logging.getLogger(__name__)
 
@@ -109,6 +109,43 @@ class ChatService:
             raise LLMUnavailable("Модель недоступна") from exc
 
         reply = reply.strip()
+        # Защита от глючных моделей: если ответ содержит иероглифы (модель
+        # «слетела» на китайский), переспрашиваем один раз, явно требуя русский.
+        if contains_cjk(reply):
+            logger.warning(
+                "Модель ответила иероглифами (user %s) — переспрашиваю по-русски",
+                user.telegram_user_id,
+            )
+            fix_messages = [
+                *messages_for_llm,
+                {"role": "assistant", "content": truncate(reply, 500)},
+                {
+                    "role": "user",
+                    "content": (
+                        "Пожалуйста, ответь ещё раз на мой вопрос. Отвечай СТРОГО "
+                        "на русском языке, без иероглифов и без других языков."
+                    ),
+                },
+            ]
+            try:
+                fixed = (
+                    await self.llm.chat(
+                        fix_messages,
+                        temperature=self.settings.llm_temperature,
+                        max_tokens=self.settings.llm_max_tokens,
+                    )
+                ).strip()
+            except LLMUnavailable:
+                fixed = ""
+            if contains_cjk(fixed):
+                reply = (
+                    "😔 Похоже, языковая модель сбоит и отвечает не по-русски. "
+                    "Это значит, что в файле .env указана глючная модель. "
+                    "Откройте .env, поменяйте LLM_MODEL на dolphin-llama3:8b "
+                    "(или qwen2.5:7b) и перезапустите бота."
+                )
+            else:
+                reply = fixed
         reply = truncate(reply, self.settings.max_message_length)
 
         async with self.db.session() as session:
