@@ -18,28 +18,27 @@ if not exist "%~dp0launcher.py" (
     exit /b 1
 )
 
-rem --- find Python: prefer py launcher, fall back to python ---
-set "PYTHONCMD=python"
+rem --- find Python: prefer py launcher, fall back to python; auto-install via winget ---
+set "PYTHONCMD="
 where py >nul 2>nul
 if not errorlevel 1 (
     py -3 -c "pass" >nul 2>nul
     if not errorlevel 1 set "PYTHONCMD=py -3"
 )
-
-if "%PYTHONCMD%"=="python" (
+if "%PYTHONCMD%"=="" (
     where python >nul 2>nul
-    if errorlevel 1 (
-        echo.
-        echo ERROR: Python is not installed.
-        echo.
-        echo Install Python 3.12 from:  https://www.python.org/downloads/
-        echo IMPORTANT: during install check the box "Add Python to PATH".
-        echo.
-        echo Then run this file again.
-        echo.
-        pause
-        exit /b 1
-    )
+    if not errorlevel 1 set "PYTHONCMD=python"
+)
+if "%PYTHONCMD%"=="" (
+    echo.
+    echo Python is not installed. Trying to install it automatically...
+    echo.
+    winget install -e --id Python.Python.3.12 --silent --accept-package-agreements --accept-source-agreements
+    echo.
+    echo Python has been installed. Close this window and run start_windows.bat again.
+    echo.
+    pause
+    exit /b 1
 )
 
 rem --- run: all logic and Russian hints live in launcher.py ---
