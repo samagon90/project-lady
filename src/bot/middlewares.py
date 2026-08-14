@@ -68,9 +68,17 @@ class RateLimitMiddleware:
             return await handler(event, data)
         now = time.monotonic()
         async with self._lock:
-            bucket = self._buckets[user_id]
+            bucket = self._buckets.get(user_id)
+            created = bucket is None
+            if created:
+                bucket = self._buckets[user_id] = deque()
             while bucket and now - bucket[0] > 60.0:
                 bucket.popleft()
+            if not bucket and not created:
+                # Окно истекло — убираем корзину из памяти: при следующем
+                # сообщении создастся новая. Память не копится между
+                # пользователями, у которых давно не было сообщений.
+                self._buckets.pop(user_id, None)
             if len(bucket) >= self.limit:
                 await self._notify_limited(event, data)
                 return None

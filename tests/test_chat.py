@@ -85,3 +85,30 @@ async def test_unregistered_user_gets_start_hint(ctx: AppContext, dp, bot, fake_
     await dp.feed_update(bot, make_update_message(6666, user_a, "привет"))
     assert "/start" in bot.last_text()
     assert fake_llm.calls == []
+
+
+async def test_rate_limit_bucket_cleanup(settings, bot) -> None:
+    """Пустые корзины rate limit удаляются — нет утечки памяти между пользователями."""
+    import time as time_module
+
+    from src.bot.middlewares import RateLimitMiddleware
+    from tests.conftest import make_message, tg_user
+
+    settings.rate_limit_messages_per_minute = 5
+    middleware = RateLimitMiddleware(settings)
+    user_a = tg_user(4455, "Dina")
+
+    async def handler(event, data):  # noqa: ANN001, ANN201
+        pass
+
+    event = make_message(4455, user_a, "m1")
+    await middleware(handler, event, {"bot": bot})
+    assert 4455 in middleware._buckets
+
+    # имитируем истёкшее окно: только старые метки
+    old = time_module.monotonic() - 120.0
+    middleware._buckets[4455].clear()
+    middleware._buckets[4455].append(old)
+    await middleware(handler, event, {"bot": bot})
+    # корзина опустела из-за истечения окна -> удалена из памяти
+    assert 4455 not in middleware._buckets
