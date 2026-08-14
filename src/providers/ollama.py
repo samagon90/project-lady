@@ -75,7 +75,15 @@ class OllamaLLMProvider:
                     )
                 if response.status_code >= 400:
                     raise LLMUnavailable(f"Ollama вернул HTTP {response.status_code} для /api/chat")
-                data = response.json()
+                # Явно декодируем ответ как UTF-8: это гарантирует, что русский
+                # текст не превратится в «иероглифы» из-за неверной кодировки.
+                try:
+                    data = response.json()
+                except Exception as exc:  # noqa: BLE001
+                    raw = response.content.decode("utf-8", errors="replace")
+                    raise LLMUnavailable(
+                        f"Ollama вернул нечитаемый ответ (не JSON). Первые символы: {raw[:120]!r}"
+                    ) from exc
                 content = (data.get("message") or {}).get("content", "")
                 if not content:
                     raise LLMUnavailable("Ollama вернул пустой ответ")

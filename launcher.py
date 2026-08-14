@@ -21,7 +21,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 VENV_PY = ROOT / ".venv" / "Scripts" / "python.exe"
-VERSION = "0.2.0"
+VERSION = "0.2.1"
 
 try:
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -454,6 +454,36 @@ def llm_model_installed() -> bool:
     return model in names
 
 
+def llm_speaks_russian() -> bool:
+    """Проверяет, что модель из .env реально отвечает по-русски (не кракозябры).
+
+    Делает короткий запрос к Ollama и проверяет, что в ответе есть
+    русские буквы. Если модель отвечает иероглифами или не отвечает —
+    возвращает False (установщик предложит другую модель).
+    """
+    model = ""
+    env = ROOT / ".env"
+    if env.exists():
+        for line in env.read_text(encoding="utf-8", errors="replace").splitlines():
+            line = line.strip()
+            if line.startswith("LLM_MODEL="):
+                model = line.split("=", 1)[1].strip()
+    if not model or not shutil.which("ollama"):
+        return False
+    try:
+        out = subprocess.run(
+            ["ollama", "run", model, "Ответь одним словом: привет"],
+            capture_output=True, text=True, timeout=120, cwd=str(ROOT),
+            encoding="utf-8", errors="replace",
+        )
+        reply = (out.stdout or out.stderr) or ""
+    except Exception:  # noqa: BLE001
+        return False
+    # Проверяем наличие русских букв (кириллица в диапазоне 0x0400-0x04FF)
+    has_cyrillic = any("\u0400" <= ch <= "\u04FF" for ch in reply)
+    return has_cyrillic
+
+
 def check_components() -> None:
     """Проверка внешних программ и модели; предлагает автоустановку недостающего."""
     missing = []
@@ -465,6 +495,8 @@ def check_components() -> None:
         missing.append("Piper (голос)")
     if not llm_model_installed():
         missing.append("языковая модель (в .env указана, но не скачана)")
+    if not missing and not llm_speaks_russian():
+        missing.append("проверка: модель отвечает иероглифами или не по-русски")
     if not missing:
         print("✅ Все внешние программы и модель на месте.")
         return
