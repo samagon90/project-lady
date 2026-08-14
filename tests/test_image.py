@@ -189,7 +189,6 @@ async def test_photo_intent_nariсуй(ctx: AppContext, dp, bot) -> None:
 
 async def test_photo_adult_woman_not_blocked(ctx: AppContext) -> None:
     """«сексуальная девушка» (взрослая) не должна блокироваться модерацией."""
-    from src.database.repositories import UserRepository
     from tests.conftest import onboard
 
     user = await onboard(ctx, 8111, nsfw=True)
