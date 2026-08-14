@@ -21,6 +21,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 VENV_PY = ROOT / ".venv" / "Scripts" / "python.exe"
+VERSION = "0.1.8"
 
 try:
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -376,17 +377,40 @@ def ensure_env() -> bool:
     return False
 
 
+def llm_model_installed() -> bool:
+    """Проверяет, что модель из .env реально скачана в Ollama."""
+    model = ""
+    env = ROOT / ".env"
+    if env.exists():
+        for line in env.read_text(encoding="utf-8", errors="replace").splitlines():
+            line = line.strip()
+            if line.startswith("LLM_MODEL="):
+                model = line.split("=", 1)[1].strip()
+    if not model or not shutil.which("ollama"):
+        return False
+    try:
+        out = subprocess.run(
+            ["ollama", "list"], capture_output=True, text=True, timeout=60, cwd=str(ROOT)
+        )
+    except Exception:  # noqa: BLE001
+        return False
+    names = {line.split()[0] for line in out.stdout.splitlines()[1:] if line.strip()}
+    return model in names
+
+
 def check_components() -> None:
-    """Проверка внешних программ; предлагает автоустановку недостающего."""
+    """Проверка внешних программ и модели; предлагает автоустановку недостающего."""
     missing = []
     if shutil.which("ollama") is None:
         missing.append("Ollama (мозг бота)")
-    if shutil.which("ffmpeg") is None:
+    if shutil.which("ffmpeg") is None and not (ROOT / PI / "ffmpeg.exe").exists():
         missing.append("ffmpeg (для голоса)")
     if shutil.which("piper") is None and not (ROOT / PI / "piper.exe").exists():
         missing.append("Piper (голос)")
+    if not llm_model_installed():
+        missing.append("языковая модель (в .env указана, но не скачана)")
     if not missing:
-        print("✅ Все внешние программы на месте.")
+        print("✅ Все внешние программы и модель на месте.")
         return
     print()
     print("Не установлены: " + ", ".join(missing))
@@ -416,6 +440,10 @@ def run_bot() -> None:
 
 def main() -> None:
     mode = sys.argv[1] if len(sys.argv) > 1 else "start"
+    print("=" * 60)
+    print("  Бот «Лея» — установщик и запуск")
+    print(f"  Версия установщика: {VERSION}")
+    print("=" * 60)
     if mode == "setup":
         setup()
         return
