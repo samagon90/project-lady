@@ -315,10 +315,12 @@ journalctl -u project-lady -f        # логи
    на civitai.com ищите по тегу «explicit» (например, majicMIX realistic,
    Pony-семейство, или любой SD1.5 + NSFW-LoRA). Файл `.safetensors` положите
    в `ComfyUI/models/checkpoints/`, LoRA — в `ComfyUI/models/loras/`.
-2. В `.env` укажите:
+2. В `.env` укажите. **Важно:** эротические запросы автоматически рисуются
+   ОТДЕЛЬНОЙ моделью, если её задать:
    ```dotenv
-   COMFYUI_CHECKPOINT=ваш_checkpoint.safetensors
-   COMFYUI_LORA=ваша_lora.safetensors     # опционально
+   COMFYUI_CHECKPOINT=ваш_обычный_checkpoint.safetensors   # для обычных фото
+   COMFYUI_NSFW_CHECKPOINT=ваш_nsfw_checkpoint.safetensors # для NSWF (18+)
+   COMFYUI_NSFW_LORA=ваша_nsfw_lora.safetensors            # опционально
    ```
 3. Для качества лучше SDXL: в `.env` поменяйте
    `COMFYUI_WORKFLOW_PATH=workflows/comfyui_leya_sdxl.json` и

@@ -191,6 +191,8 @@ def build_app_context(
         settings.resolved_workflow_path,
         checkpoint=settings.comfyui_checkpoint,
         lora=settings.comfyui_lora,
+        nsfw_checkpoint=settings.comfyui_nsfw_checkpoint,
+        nsfw_lora=settings.comfyui_nsfw_lora,
         timeout_seconds=settings.comfyui_timeout_seconds,
         poll_interval_seconds=settings.comfyui_poll_interval_seconds,
     )

@@ -134,3 +134,33 @@ async def test_photo_via_state_flow(ctx: AppContext, dp, bot) -> None:
         assert "балкон" in jobs[0].request_text
     await ctx.image_service.run_job(job_id, bot)
     assert any(item[0] == "photo" for item in bot.sent)
+
+
+async def test_nsfw_checkpoint_auto_switch() -> None:
+    """Эротический запрос автоматически рисуется NSFW-моделью."""
+    from pathlib import Path
+
+    from src.providers.base import ImageRequest
+    from src.providers.comfyui import ComfyUIProvider
+
+    provider = ComfyUIProvider(
+        "http://127.0.0.1:8188",
+        Path("workflows/comfyui_leya_sd15.json"),
+        checkpoint="sfw_model.safetensors",
+        nsfw_checkpoint="nsfw_model.safetensors",
+        nsfw_lora="nsfw_lora.safetensors",
+    )
+
+    def ckpt_of(workflow: dict) -> str:
+        for node in workflow.values():
+            if (node.get("_meta") or {}).get("title") == "Load Checkpoint":
+                return node["inputs"]["ckpt_name"]
+        raise AssertionError("нет узла Load Checkpoint")
+
+    wf = provider._load_workflow()
+    provider._inject(wf, ImageRequest(prompt="p", nsfw=True))
+    assert ckpt_of(wf) == "nsfw_model.safetensors"
+
+    wf2 = provider._load_workflow()
+    provider._inject(wf2, ImageRequest(prompt="p", nsfw=False))
+    assert ckpt_of(wf2) == "sfw_model.safetensors"

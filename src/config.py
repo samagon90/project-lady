@@ -54,6 +54,10 @@ class Settings(BaseSettings):
     comfyui_workflow_path: Path = Path("workflows/comfyui_leya_sd15.json")
     comfyui_checkpoint: str = "dreamshaper_8.safetensors"
     comfyui_lora: str = ""
+    # Отдельные checkpoint/LoRA для NSFW-запросов (18+, вымышленный персонаж).
+    # Если заданы — при эротическом запросе бот автоматически использует их.
+    comfyui_nsfw_checkpoint: str = ""
+    comfyui_nsfw_lora: str = ""
     comfyui_timeout_seconds: float = 600.0
     comfyui_poll_interval_seconds: float = 2.0
     image_max_workers: int = 1

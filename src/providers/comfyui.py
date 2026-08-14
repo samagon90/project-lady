@@ -38,6 +38,8 @@ class ComfyUIProvider:
         *,
         checkpoint: str = "",
         lora: str = "",
+        nsfw_checkpoint: str = "",
+        nsfw_lora: str = "",
         timeout_seconds: float = 600.0,
         poll_interval_seconds: float = 2.0,
         client: httpx.AsyncClient | None = None,
@@ -46,6 +48,8 @@ class ComfyUIProvider:
         self.workflow_path = workflow_path
         self.checkpoint = checkpoint
         self.lora = lora
+        self.nsfw_checkpoint = nsfw_checkpoint
+        self.nsfw_lora = nsfw_lora
         self.timeout = timeout_seconds
         self.poll_interval = poll_interval_seconds
         self._client = client
@@ -105,10 +109,18 @@ class ComfyUIProvider:
             latent["inputs"]["height"] = request.height
         if save is not None:
             save["inputs"]["filename_prefix"] = f"leya/{safe_filename('img', '')[:-1]}"
-        if checkpoint_node is not None and self.checkpoint:
-            checkpoint_node["inputs"]["ckpt_name"] = self.checkpoint
-        if lora_node is not None and self.lora:
-            lora_node["inputs"]["lora_name"] = self.lora
+        # NSFW-запросы (18+, вымышленный персонаж) рисуются отдельной
+        # моделью, если она задана через COMFYUI_NSFW_CHECKPOINT/LORA.
+        if request.nsfw:
+            ckpt = self.nsfw_checkpoint or self.checkpoint
+            lora = self.nsfw_lora or self.lora
+        else:
+            ckpt = self.checkpoint
+            lora = self.lora
+        if checkpoint_node is not None and ckpt:
+            checkpoint_node["inputs"]["ckpt_name"] = ckpt
+        if lora_node is not None and lora:
+            lora_node["inputs"]["lora_name"] = lora
 
     # ------------------------------------------------------------------ generate
 
