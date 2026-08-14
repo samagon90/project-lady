@@ -34,6 +34,11 @@
 > с нуля до работающего бота (Python, BotFather, Ollama, Piper, ffmpeg,
 > ComfyUI, первое знакомство, бесплатное облако Oracle, Docker, FAQ).
 > Перед запуском выполните `make doctor` — он проверит готовность окружения.
+>
+> 🐣 **Вы никогда не программировали?** Откройте
+> **[GUIDE_FOR_BEGINNERS.md](GUIDE_FOR_BEGINNERS.md)** — инструкция простыми
+> словами. На Windows запуск — двойной клик по **`start_windows.bat`**,
+> на Mac — перетащить **`start.sh`** в Терминал.
    - [Шаг 1. Python и зависимости](#шаг-1-python-и-зависимости)
    - [Шаг 2. Telegram-бот через BotFather](#шаг-2-telegram-бот-через-botfather)
    - [Шаг 3. Ollama и LLM](#шаг-3-ollama-и-llm)
