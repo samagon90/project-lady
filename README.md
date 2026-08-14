@@ -305,6 +305,44 @@ journalctl -u project-lady -f        # логи
 Юнит использует `EnvironmentFile=/opt/project-lady/.env`, перезапускает бота при
 падении и корректно останавливает его по SIGTERM (graceful shutdown).
 
+## NSFW-контент: картинки и голос (18+)
+
+Всё это уже реализовано в боте. Что нужно от вас — только установка моделей.
+
+### 🔞 NSFW-картинки (`/photo`)
+
+1. **Поставьте checkpoint с поддержкой взрослого контента** (SD1.5 или SDXL):
+   на civitai.com ищите по тегу «explicit» (например, majicMIX realistic,
+   Pony-семейство, или любой SD1.5 + NSFW-LoRA). Файл `.safetensors` положите
+   в `ComfyUI/models/checkpoints/`, LoRA — в `ComfyUI/models/loras/`.
+2. В `.env` укажите:
+   ```dotenv
+   COMFYUI_CHECKPOINT=ваш_checkpoint.safetensors
+   COMFYUI_LORA=ваша_lora.safetensors     # опционально
+   ```
+3. Для качества лучше SDXL: в `.env` поменяйте
+   `COMFYUI_WORKFLOW_PATH=workflows/comfyui_leya_sdxl.json` и
+   `IMAGE_DEFAULT_SIZE=832x1216` (нужен SDXL-checkpoint ~6–7 ГБ).
+4. В Telegram: `/photo <описание>` — бот сам определит эротический запрос,
+   проверит NSFW-согласие (18+ + отдельный opt-in) и поставит в очередь.
+
+Внешность Леи стабильна благодаря character sheet; для идеально
+узнаваемого лица добавьте обученный на персонаже LoRA.
+
+> Модерация изображений отключаться не будет: запросы с несовершеннолетними,
+> реальными людьми, дипфейками и т.п. блокируются всегда — это защита от
+> незаконного контента, а не «цензура характера».
+
+### 🎙 Голосовые ответы (`/voice`)
+
+1. Установите Piper (см. раздел «Установка», шаг 6) и `make voice` — русский голос.
+2. В Telegram: `/voice` → включить.
+3. Параметры в `.env`: `PIPER_VOICE_MODEL`, `PIPER_LENGTH_SCALE` (скорость),
+   `TTS_MAX_CHARS` (длина части).
+4. Если Piper недоступен — бот отвечает текстом, без падения.
+
+---
+
 ## Память и приватность
 
 **Что хранится** (локально, в вашей БД):
