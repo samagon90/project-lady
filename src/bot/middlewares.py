@@ -70,8 +70,9 @@ class RateLimitMiddleware:
         async with self._lock:
             bucket = self._buckets.get(user_id)
             created = bucket is None
-            if created:
-                bucket = self._buckets[user_id] = deque()
+            if bucket is None:
+                bucket = deque()
+                self._buckets[user_id] = bucket
             while bucket and now - bucket[0] > 60.0:
                 bucket.popleft()
             if not bucket and not created:
