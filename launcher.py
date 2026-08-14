@@ -17,7 +17,6 @@ import os
 import shutil
 import subprocess
 import sys
-import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
@@ -31,10 +30,28 @@ except Exception:
 PI = "piper"  # папка для бинарника Piper рядом с проектом
 
 
-def run(args) -> None:
-    """Запуск команды с выводом в то же окно (виден прогресс)."""
+def run(args) -> int:
+    """Запуск команды с выводом в то же окно; возвращает код возврата."""
     print(f"\n>> {' '.join(str(a) for a in args)}\n")
-    subprocess.run([str(a) for a in args], cwd=str(ROOT), check=False)
+    return subprocess.run([str(a) for a in args], cwd=str(ROOT), check=False).returncode
+
+
+def download(url: str, dest: Path) -> bool:
+    """Скачивание файла: сначала curl.exe (системные сертификаты Windows),
+    затем venv-питон с certifi. Возвращает True при успехе."""
+    dest = Path(dest)
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    if shutil.which("curl"):
+        code = run(["curl", "-L", "--fail", "--connect-timeout", "30", "-o", str(dest), url])
+        if code == 0 and dest.exists() and dest.stat().st_size > 0:
+            return True
+        print("curl не справился — пробую другой способ...")
+    if VENV_PY.exists():
+        code = run([VENV_PY, str(ROOT / "scripts" / "download.py"), url, str(dest)])
+        if code == 0 and dest.exists() and dest.stat().st_size > 0:
+            return True
+    print(f"❌ Не удалось скачать: {url}")
+    return False
 
 
 def ask(question: str, options: dict[str, str]) -> str:
@@ -121,28 +138,39 @@ def pull_models() -> None:
     choice = ask(
         "Какую модель скачать? (от этого зависит «раскованность» Леи)",
         {
-            "abl": "Развратная без цензуры (huihui_ai/qwen2.5-abliterated:7b, ~5 ГБ) — рекомендую",
+            "abl": "Развратная без цензуры (huihui_ai/qwen2.5-abliterate:7b, ~5 ГБ) — рекомендую",
             "3b": "Компактная (qwen2.5:3b, ~2 ГБ) — для слабых ПК",
             "7b": "Стандартная (qwen2.5:7b, ~5 ГБ) — цензура встроена, NSFW хуже",
         },
     )
-    if choice == "abl":
-        model = "huihui_ai/qwen2.5-abliterated:7b"
-    elif choice == "3b":
-        model = "qwen2.5:3b"
-    else:
-        model = "qwen2.5:7b"
-    print(f"\nСкачиваю модель {model}... это 2-30 минут, не выключайте компьютер.")
-    run(["ollama", "pull", model])
+    candidates = {
+        "abl": [
+            "huihui_ai/qwen2.5-abliterate:7b",
+            "dolphin-llama3:8b",      # запасная «раскованная» модель
+            "qwen2.5:7b",             # крайний запас
+        ],
+        "3b": ["qwen2.5:3b"],
+        "7b": ["qwen2.5:7b"],
+    }[choice]
+    chosen = None
+    for model in candidates:
+        print(f"\nСкачиваю модель {model}... это 2-30 минут, не выключайте компьютер.")
+        if run(["ollama", "pull", model]) == 0:
+            chosen = model
+            break
+        print(f"⚠️ Не удалось скачать {model}. Пробую следующую...")
+    if chosen is None:
+        print("❌ Ни одна модель не скачалась. Проверьте интернет и повторите позже.")
+        return
     print("Скачиваю маленькую модель для памяти (nomic-embed-text)...")
     run(["ollama", "pull", "nomic-embed-text"])
-    # прописываем модель в .env
+    # прописываем успешно скачанную модель в .env
     env = ROOT / ".env"
     if env.exists():
         text = env.read_text(encoding="utf-8")
-        lines = [line if not line.startswith("LLM_MODEL=") else f"LLM_MODEL={model}" for line in text.splitlines()]
+        lines = [line if not line.startswith("LLM_MODEL=") else f"LLM_MODEL={chosen}" for line in text.splitlines()]
         env.write_text("\n".join(lines) + "\n", encoding="utf-8")
-        print(f"✅ В .env записано: LLM_MODEL={model}")
+        print(f"✅ В .env записано: LLM_MODEL={chosen}")
 
 
 def ensure_ffmpeg() -> None:
@@ -150,13 +178,31 @@ def ensure_ffmpeg() -> None:
         print("✅ ffmpeg уже установлен.")
         return
     print("Устанавливаю ffmpeg (нужен для голосовых)...")
-    if winget("Gyan.FFmpeg"):
-        if shutil.which("ffmpeg"):
-            print("✅ ffmpeg установлен.")
-            return
-    print("⚠️ ffmpeg не установился автоматически. Голос будет работать после")
-    print("   ручной установки: https://www.gyan.dev/ffmpeg/builds/ (release essentials zip,")
-    print("   распаковать, папку bin добавить в PATH). Бот без голоса запустится.")
+    if winget("Gyan.FFmpeg") and shutil.which("ffmpeg"):
+        print("✅ ffmpeg установлен.")
+        return
+    # Запасной способ: прямая загрузка сборки с GitHub (BtbN) рядом с ботом
+    print("winget не помог — скачиваю ffmpeg напрямую (~80 МБ)...")
+    zip_path = ROOT / "ffmpeg.zip"
+    ffmpeg_url = "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip"
+    if download(ffmpeg_url, zip_path):
+        import zipfile
+
+        try:
+            with zipfile.ZipFile(zip_path) as zf:
+                zf.extractall(ROOT / "ffmpeg")
+            zip_path.unlink(missing_ok=True)
+            exe = next((p for p in (ROOT / "ffmpeg").rglob("bin/ffmpeg.exe")), None)
+            if exe is not None:
+                # кладём ffmpeg.exe рядом с piper — эта папка уже в PATH для бота
+                (ROOT / PI).mkdir(parents=True, exist_ok=True)
+                shutil.copy2(exe, ROOT / PI / "ffmpeg.exe")
+                print("✅ ffmpeg установлен.")
+                return
+        except Exception as exc:  # noqa: BLE001
+            print(f"⚠️ Не удалось распаковать ffmpeg: {exc}")
+    print("⚠️ ffmpeg не установился автоматически. Бот запустится, голосовые")
+    print("   появятся после ручной установки (см. RUNBOOK.md, раздел 6).")
 
 
 def ensure_piper() -> None:
@@ -165,11 +211,13 @@ def ensure_piper() -> None:
         return
     arch = os.environ.get("PROCESSOR_ARCHITECTURE", "").lower()
     pkg = "piper_arm64.tar.gz" if "arm" in arch else "piper_amd64.tar.gz"
-    url = f"https://github.com/rhasspy/piper/releases/download/1.2.0/{pkg}"
+    url = f"https://github.com/rhasspy/piper/releases/download/v1.2.0/{pkg}"
     print(f"Скачиваю Piper ({pkg}, ~40 МБ)...")
+    archive = ROOT / pkg
+    if not download(url, archive):
+        print("   Установите вручную: https://github.com/rhasspy/piper/releases")
+        return
     try:
-        archive = ROOT / pkg
-        urllib.request.urlretrieve(url, archive)  # noqa: S310
         import tarfile
 
         with tarfile.open(archive) as tf:
@@ -183,7 +231,7 @@ def ensure_piper() -> None:
             print("❌ Не удалось распаковать Piper — установите вручную:")
             print("   https://github.com/rhasspy/piper/releases")
     except Exception as exc:  # noqa: BLE001
-        print(f"❌ Ошибка скачивания Piper: {exc}")
+        print(f"❌ Ошибка распаковки Piper: {exc}")
         print("   Установите вручную: https://github.com/rhasspy/piper/releases")
 
 
@@ -197,10 +245,7 @@ def ensure_voice() -> None:
     base = "https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/ru/ru_RU/irina/medium"
     for name in ("ru_RU-irina-medium.onnx", "ru_RU-irina-medium.onnx.json"):
         print(f"Скачиваю голос ({name}, ~100 МБ суммарно)...")
-        try:
-            urllib.request.urlretrieve(f"{base}/{name}", voice_dir / name)  # noqa: S310
-        except Exception as exc:  # noqa: BLE001
-            print(f"❌ Не удалось скачать голос: {exc}")
+        if not download(f"{base}/{name}", voice_dir / name):
             print("   Повторите позже командой:  make voice")
             return
     print("✅ Русский голос установлен.")
