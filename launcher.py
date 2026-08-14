@@ -32,9 +32,20 @@ PI = "piper"  # папка для бинарника Piper рядом с про�
 
 
 def run(args) -> int:
-    """Запуск команды с выводом в то же окно; возвращает код возврата."""
+    """Запуск команды с выводом в то же окно; возвращает код возврата.
+
+    Если команда не найдена (например, нет git) — печатает понятное
+    сообщение и возвращает ненулевой код вместо падения с Traceback.
+    """
     print(f"\n>> {' '.join(str(a) for a in args)}\n")
-    return subprocess.run([str(a) for a in args], cwd=str(ROOT), check=False).returncode
+    try:
+        return subprocess.run([str(a) for a in args], cwd=str(ROOT), check=False).returncode
+    except FileNotFoundError:
+        print(f"⚠️ Программа не найдена: {args[0]}. Продолжаю без неё.")
+        return 1
+    except OSError as exc:
+        print(f"⚠️ Не удалось запустить {args[0]}: {exc}")
+        return 1
 
 
 def download(url: str, dest: Path) -> bool:
@@ -261,8 +272,28 @@ def ensure_comfyui() -> None:
     if ask("Ставим ComfyUI?", {"y": "Да, ставь", "n": "Нет, пропустить"}) != "y":
         return
     if not comfy_dir.exists():
-        print("Клонирую ComfyUI...")
-        run(["git", "clone", "https://github.com/comfyanonymous/ComfyUI.git", str(comfy_dir)])
+        # git может быть не установлен — поэтому качаем архив с GitHub
+        print("Скачиваю ComfyUI (архив, ~12 МБ)...")
+        zip_path = ROOT / "comfyui.zip"
+        comfyui_url = "https://github.com/comfyanonymous/ComfyUI/archive/refs/heads/master.zip"
+        if not download(comfyui_url, zip_path):
+            print("❌ Не удалось скачать ComfyUI. Картинки можно будет доустановить позже.")
+            return
+        try:
+            import zipfile
+
+            with zipfile.ZipFile(zip_path) as zf:
+                zf.extractall(ROOT.parent)
+            zip_path.unlink(missing_ok=True)
+            extracted = ROOT.parent / "ComfyUI-master"
+            if extracted.exists() and not comfy_dir.exists():
+                extracted.rename(comfy_dir)
+        except Exception as exc:  # noqa: BLE001
+            print(f"❌ Не удалось распаковать ComfyUI: {exc}")
+            return
+    if not comfy_dir.exists():
+        print("❌ Папка ComfyUI не появилась. Установите вручную (см. RUNBOOK.md, раздел 7).")
+        return
     python = sys.executable
     run([python, "-m", "venv", str(comfy_dir / "venv")])
     comfy_py = comfy_dir / "venv" / "Scripts" / "python.exe"
