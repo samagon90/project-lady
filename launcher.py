@@ -21,7 +21,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 VENV_PY = ROOT / ".venv" / "Scripts" / "python.exe"
-VERSION = "0.1.9"
+VERSION = "0.2.0"
 
 try:
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -303,10 +303,35 @@ def ensure_comfyui() -> None:
     run([comfy_py, "-m", "pip", "install", "-r", str(comfy_dir / "requirements.txt")])
     print()
     print("✅ ComfyUI установлен.")
-    print("Осталось скачать модель-«художника» (checkpoint, ~2-7 ГБ):")
-    print("  https://civitai.com — ищите по тегу «explicit» (например, majicMIX realistic)")
-    print("  Файл .safetensors положите в: ComfyUI/models/checkpoints/")
-    print("  Затем в .env пропишите: COMFYUI_NSFW_CHECKPOINT=имя_файла.safetensors")
+    # Сразу скачиваем модель-«художника» — чтобы картинки заработали без ручных шагов
+    checkpoints = comfy_dir / "models" / "checkpoints"
+    checkpoints.mkdir(parents=True, exist_ok=True)
+    target = checkpoints / "majicmixRealistic_v7.safetensors"
+    if target.exists():
+        print(f"✅ Модель уже есть: {target.name}")
+    else:
+        print()
+        print("Скачиваю модель-«художника» majicMIX realistic (~2 ГБ, NSFW 18+)...")
+        print("Это 5-30 минут. Не закрывайте окно.")
+        model_url = "https://civitai.com/api/download/models/87927"
+        if download(model_url, target):
+            print(f"✅ Модель сохранена: {target}")
+        else:
+            print("❌ Не удалось скачать модель автоматически.")
+            print("   Позже сделайте вручную: civitai.com → «explicit» → majicMIX realistic,")
+            print("   файл .safetensors → ComfyUI/models/checkpoints/")
+    # прописываем NSFW-модель в .env (если файл появился)
+    if target.exists():
+        env = ROOT / ".env"
+        if env.exists():
+            text = env.read_text(encoding="utf-8")
+            lines = []
+            for line in text.splitlines():
+                if line.startswith("COMFYUI_NSFW_CHECKPOINT="):
+                    line = f"COMFYUI_NSFW_CHECKPOINT={target.name}"
+                lines.append(line)
+            env.write_text("\n".join(lines) + "\n", encoding="utf-8")
+            print(f"✅ В .env записано: COMFYUI_NSFW_CHECKPOINT={target.name}")
     print()
     print("Запускать ComfyUI так (каждый раз, когда нужны картинки):")
     print(f'  {comfy_py} "{comfy_dir / "main.py"}" --listen 127.0.0.1 --port 8188')
