@@ -118,11 +118,66 @@ class ComfyUIProvider:
             ckpt = self.checkpoint
             lora = self.lora
         if checkpoint_node is not None and ckpt:
-            checkpoint_node["inputs"]["ckpt_name"] = ckpt
+            checkpoint_node["inputs"]["ckpt_name"] = self._resolve_checkpoint(ckpt, workflow)
         if lora_node is not None and lora:
             lora_node["inputs"]["lora_name"] = lora
 
-    # ------------------------------------------------------------------ generate
+    def _resolve_checkpoint(self, requested: str, workflow: dict) -> str:
+        """Возвращает имя checkpoint для ComfyUI.
+
+        Если запрошенной модели нет (например, в .env старое имя из примера),
+        а в ComfyUI установлена другая — автоматически используем её.
+        Список моделей получаем один раз из /object_info и кэшируем.
+        """
+        if not requested:
+            return requested
+        cache = self.__dict__.setdefault("_available_checkpoints", None)
+        if cache is None:
+            cache = self._fetch_checkpoints(workflow)
+            self._available_checkpoints = cache
+        if requested in cache:
+            return requested
+        if cache:
+            logger.warning(
+                "Checkpoint %s не найден в ComfyUI; используем %s",
+                requested,
+                cache[0],
+            )
+            return cache[0]
+        return requested
+
+    def _fetch_checkpoints(self, workflow: dict) -> list[str]:
+        """Список checkpoint'ов из ComfyUI. Если API недоступен — возвращаем
+        имя из самого workflow (fallback), чтобы не ломать генерацию."""
+        try:
+            import httpx as _httpx
+
+            client = _httpx.Client(timeout=5.0)
+            response = client.get(
+                f"{self.base_url}/object_info/CheckpointLoaderSimple"
+            )
+            if response.status_code == 200:
+                info = response.json()
+                required = (
+                    info.get("CheckpointLoaderSimple", {})
+                    .get("input", {})
+                    .get("required", {})
+                )
+                options = required.get("ckpt_name", [])
+                names = [opt[0] if isinstance(opt, list) else opt for opt in options]
+                result = [str(n) for n in names if n]
+                if result:
+                    return result
+        except Exception:  # noqa: BLE001
+            pass
+        # fallback: берём имя из workflow (то, что было в файле)
+        for node in workflow.values():
+            meta_title = (node.get("_meta") or {}).get("title", "")
+            if meta_title == "Load Checkpoint":
+                value = (node.get("inputs") or {}).get("ckpt_name")
+                if value:
+                    return [str(value)]
+        return []
 
     async def generate(self, request: ImageRequest) -> list[bytes]:
         workflow = self._load_workflow()

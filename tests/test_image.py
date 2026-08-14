@@ -150,6 +150,8 @@ async def test_nsfw_checkpoint_auto_switch() -> None:
         nsfw_checkpoint="nsfw_model.safetensors",
         nsfw_lora="nsfw_lora.safetensors",
     )
+    # Обе модели есть в ComfyUI — автоподстановка не нужна
+    provider._available_checkpoints = ["sfw_model.safetensors", "nsfw_model.safetensors"]
 
     def ckpt_of(workflow: dict) -> str:
         for node in workflow.values():
@@ -224,3 +226,50 @@ async def test_judge_blocks_real_minor_marker(ctx: AppContext, fake_llm) -> None
     assert decision.blocked
     decision2 = await ctx.moderation.judge_image_request("сексуальная школьница")
     assert decision2.blocked
+
+
+async def test_checkpoint_auto_resolve_missing() -> None:
+    """Если запрошенного checkpoint нет, а есть другой — бот берёт его."""
+    from pathlib import Path
+
+    from src.providers.base import ImageRequest
+    from src.providers.comfyui import ComfyUIProvider
+
+    provider = ComfyUIProvider(
+        "http://127.0.0.1:8188",
+        Path("workflows/comfyui_leya_sd15.json"),
+        checkpoint="dreamshaper_8.safetensors",
+    )
+    # Имитируем ответ ComfyUI: в системе есть только majicmixRealistic_v7
+    provider._available_checkpoints = ["majicmixRealistic_v7.safetensors"]
+    workflow = provider._load_workflow()
+    provider._inject(workflow, ImageRequest(prompt="p", nsfw=False))
+    for node in workflow.values():
+        if (node.get("_meta") or {}).get("title") == "Load Checkpoint":
+            assert node["inputs"]["ckpt_name"] == "majicmixRealistic_v7.safetensors"
+            break
+    else:
+        raise AssertionError("нет узла Load Checkpoint")
+
+
+async def test_checkpoint_keeps_existing() -> None:
+    """Если запрошенный checkpoint есть — он не меняется."""
+    from pathlib import Path
+
+    from src.providers.base import ImageRequest
+    from src.providers.comfyui import ComfyUIProvider
+
+    provider = ComfyUIProvider(
+        "http://127.0.0.1:8188",
+        Path("workflows/comfyui_leya_sd15.json"),
+        checkpoint="majicmixRealistic_v7.safetensors",
+    )
+    provider._available_checkpoints = ["majicmixRealistic_v7.safetensors"]
+    workflow = provider._load_workflow()
+    provider._inject(workflow, ImageRequest(prompt="p", nsfw=True))
+    for node in workflow.values():
+        if (node.get("_meta") or {}).get("title") == "Load Checkpoint":
+            assert node["inputs"]["ckpt_name"] == "majicmixRealistic_v7.safetensors"
+            break
+    else:
+        raise AssertionError("нет узла Load Checkpoint")
