@@ -1,16 +1,13 @@
 @echo off
-chcp 65001 >nul
-title Лея — проверка готовности
+title Leia bot checker
 cd /d "%~dp0"
 
-if not exist .venv (
-    echo Сначала запустите start_windows.bat
+if not exist ".venv\Scripts\python.exe" (
+    echo First run start_windows.bat to install the bot.
     pause
     exit /b 1
 )
 
-echo Проверяем, всё ли готово к запуску...
-echo.
-.venv\Scripts\python.exe scripts\doctor.py
+".venv\Scripts\python.exe" scripts\doctor.py
 echo.
 pause
