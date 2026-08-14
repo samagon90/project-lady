@@ -185,3 +185,20 @@ async def test_photo_intent_nariсуй(ctx: AppContext, dp, bot) -> None:
     await onboard(ctx, 8110)
     await dp.feed_update(bot, make_update_message(8110, user_a, "Нарисуй Лею в вечернем платье"))
     assert "создаётся" in bot.last_text()
+
+
+async def test_photo_adult_woman_not_blocked(ctx: AppContext) -> None:
+    """«сексуальная девушка» (взрослая) не должна блокироваться модерацией."""
+    from src.database.repositories import UserRepository
+    from tests.conftest import onboard
+
+    user = await onboard(ctx, 8111, nsfw=True)
+    # блоклист: не блокирует
+    decision = ctx.moderation.check_image_blocklist("сексуальная девушка")
+    assert not decision.blocked
+    # LLM-судья (FakeLLM возвращает {"blocked": false}): не блокирует
+    judge = await ctx.moderation.judge_image_request("сексуальная девушка")
+    assert not judge.blocked
+    # полный цикл submit: задача создаётся
+    result = await ctx.image_service.submit(user, "сексуальная девушка", 42)
+    assert result.ok, result.refusal_text
