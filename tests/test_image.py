@@ -210,7 +210,6 @@ async def test_judge_false_positive_adult_not_blocked(ctx: AppContext, fake_llm)
     decision = await ctx.moderation.judge_image_request("сексуальная девушка")
     assert not decision.blocked
     # полный цикл submit тоже работает
-    from src.database.repositories import UserRepository
     from tests.conftest import onboard
 
     user = await onboard(ctx, 8112, nsfw=True)
