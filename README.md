@@ -228,7 +228,8 @@ make run            # запуск бота
 > При каждом старте миграции применяются автоматически — `make migrate` нужен для явного запуска.
 
 **PostgreSQL (опционально):** создайте БД и укажите в `.env`:
-`DATABASE_URL=postgresql+asyncpg://user:password@host:5432/project_lady` и установите `pip install asyncpg`.
+`DATABASE_URL=postgresql+asyncpg://user:password@host:5432/project_lady`, затем
+установите драйвер: `.venv/bin/pip install -e ".[postgres]"`.
 
 ## Запуск через Docker Compose
 
@@ -262,6 +263,25 @@ docker compose --profile comfyui up -d
 На ARM-инстансе: `ollama pull qwen2.5:7b` (есть ARM-сборка), Piper `piper_arm64`, ComfyUI на CPU — генерация одной картинки 512×768 занимает 2–10 минут; увеличьте `IMAGE_PHOTO_RATE_LIMIT_MINUTES`.
 
 Если ресурсов мало, отключите тяжёлое: `TTS_ENABLED=false` и не запускайте ComfyUI — бот останется полноценным текстовым.
+
+### Автозапуск 24/7 через systemd
+
+Для постоянной работы без Docker:
+
+```bash
+sudo mkdir -p /opt/project-lady && sudo chown $USER /opt/project-lady
+cp -r . /opt/project-lady            # код проекта
+cd /opt/project-lady && make install && cp .env.example .env  # настроить токен
+sudo useradd -r -s /usr/sbin/nologin projectlady || true
+sudo chown -R projectlady:projectlady /opt/project-lady
+sudo cp deploy/project-lady.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now project-lady
+journalctl -u project-lady -f        # логи
+```
+
+Юнит использует `EnvironmentFile=/opt/project-lady/.env`, перезапускает бота при
+падении и корректно останавливает его по SIGTERM (graceful shutdown).
 
 ## Память и приватность
 

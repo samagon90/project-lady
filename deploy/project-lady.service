@@ -1,0 +1,37 @@
+# systemd-юнит для запуска бота 24/7 (например, на Oracle Cloud Free Tier).
+#
+# Установка:
+#   1. Скопируйте проект в /opt/project-lady:
+#        sudo mkdir -p /opt/project-lady
+#        sudo chown $USER /opt/project-lady
+#        cp -r . /opt/project-lady
+#   2. Установите зависимости и настройте .env (см. README).
+#   3. Создайте пользователя (опционально):
+#        sudo useradd -r -s /usr/sbin/nologin projectlady
+#        sudo chown -R projectlady:projectlady /opt/project-lady
+#   4. Установите юнит:
+#        sudo cp deploy/project-lady.service /etc/systemd/system/
+#        sudo systemctl daemon-reload
+#        sudo systemctl enable --now project-lady
+#   5. Логи: journalctl -u project-lady -f
+
+[Unit]
+Description=project-lady — Telegram-бот «Лея» (ИИ-компаньон)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=projectlady
+Group=projectlady
+WorkingDirectory=/opt/project-lady
+EnvironmentFile=/opt/project-lady/.env
+ExecStart=/opt/project-lady/.venv/bin/python -m src.main
+Restart=always
+RestartSec=5
+# Плавная остановка: бот сам обрабатывает SIGTERM (graceful shutdown)
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target

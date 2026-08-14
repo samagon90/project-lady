@@ -54,14 +54,10 @@ class UserRepository:
 
     async def set_consent_step(self, user: User, step: str) -> None:
         """UPDATE-запрос: работает и для detached-объектов из другой сессии."""
-        await self.session.execute(
-            update(User).where(User.id == user.id).values(consent_step=step)
-        )
+        await self.session.execute(update(User).where(User.id == user.id).values(consent_step=step))
 
     async def touch(self, user: User) -> None:
-        await self.session.execute(
-            update(User).where(User.id == user.id).values(last_active_at=utcnow())
-        )
+        await self.session.execute(update(User).where(User.id == user.id).values(last_active_at=utcnow()))
 
 
 class PreferencesRepository:

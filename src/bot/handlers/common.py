@@ -8,7 +8,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
 from src.bot.di import AppContext
-from src.bot.keyboards import age_gate_kb
+from src.bot.keyboards import age_gate_kb, base_consent_kb, nsfw_consent_kb
 from src.database.models import User as DbUser
 
 router = Router()
@@ -28,6 +28,25 @@ WELCOME_TEXT = (
 @router.message(CommandStart())
 async def cmd_start(message: Message, bot: Bot, app_ctx: AppContext, user: DbUser | None) -> None:
     if user is not None:
+        # Незавершённый онбординг — продолжаем с нужного шага
+        if user.consent_step == "base_pending":
+            await bot.send_message(
+                chat_id=message.chat.id,
+                text=app_ctx.consent.base_policy_text(),
+                reply_markup=base_consent_kb(),
+            )
+            return
+        if user.consent_step == "nsfw_question":
+            await bot.send_message(
+                chat_id=message.chat.id,
+                text=(
+                    "Мы остановились на вопросе про NSFW-режим 🔞\n\n"
+                    "Он включается только отдельным согласием, доступен только "
+                    "совершеннолетним и никогда не активируется автоматически."
+                ),
+                reply_markup=nsfw_consent_kb(),
+            )
+            return
         await bot.send_message(
             chat_id=message.chat.id,
             text=(
