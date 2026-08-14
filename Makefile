@@ -1,11 +1,12 @@
 SHELL := /bin/bash
 PYTHON ?= .venv/bin/python
 PIP ?= .venv/bin/pip
+PYTHON_BIN ?= python3
 
-.PHONY: install migrate run test lint voice models
+.PHONY: install migrate run test lint doctor voice models
 
 install:            ## установить зависимости (нужен Python 3.12+)
-	python3 -m venv .venv
+	$(PYTHON_BIN) -m venv .venv
 	$(PIP) install -U pip
 	$(PIP) install -e ".[dev]"
 
@@ -19,8 +20,11 @@ test:               ## прогнать тесты
 	$(PYTHON) -m pytest
 
 lint:               ## линтер ruff + проверка типов mypy
-	$(PYTHON) -m ruff check src tests
+	$(PYTHON) -m ruff check src tests scripts
 	$(PYTHON) -m mypy src
+
+doctor:             ## проверить готовность окружения (Python, .env, БД, Ollama, Piper, ffmpeg, ComfyUI)
+	$(PYTHON) scripts/doctor.py
 
 voice:              ## скачать русский голос Piper (бесплатно, HuggingFace)
 	mkdir -p models/piper
