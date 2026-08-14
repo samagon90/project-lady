@@ -1,0 +1,46 @@
+# docker compose up -d --build
+# Перед запуском: cp .env.example .env и заполнить TELEGRAM_TOKEN
+services:
+  bot:
+    build: .
+    env_file: .env
+    environment:
+      LLM_BASE_URL: http://ollama:11434
+      COMFYUI_BASE_URL: http://comfyui:8188
+      DATABASE_URL: sqlite+aiosqlite:////app/data/bot.db
+      DATA_DIR: /app/data
+      TEMP_DIR: /app/data/tmp
+      PIPER_VOICE_MODEL: /app/models/piper/ru_RU-irina-medium.onnx
+    volumes:
+      - ./data:/app/data
+      - ./models:/app/models
+    depends_on:
+      - ollama
+    restart: unless-stopped
+
+  ollama:
+    image: ollama/ollama:latest
+    volumes:
+      - ollama:/root/.ollama
+    # Порт не публикуем наружу — только внутренняя сеть compose
+    expose:
+      - "11434"
+    restart: unless-stopped
+
+  # Генерация изображений — тяжёлый сервис (нужен GPU или мощный CPU).
+  # Запуск: docker compose --profile comfyui up -d
+  # Модели ComfyUI кладутся в ./comfyui/models (см. README).
+  comfyui:
+    image: ai-dock/comfyui:latest
+    profiles: ["comfyui"]
+    environment:
+      - CLI_ARGS=--listen 0.0.0.0 --port 8188
+    volumes:
+      - ./comfyui/models:/opt/ComfyUI/models
+      - ./data/comfyui-output:/opt/ComfyUI/output
+    expose:
+      - "8188"
+    restart: unless-stopped
+
+volumes:
+  ollama:

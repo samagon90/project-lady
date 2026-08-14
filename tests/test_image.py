@@ -1,0 +1,136 @@
+"""Тесты генерации изображений: очередь, согласия, модерация, ошибки ComfyUI."""
+
+from __future__ import annotations
+
+import asyncio
+import json
+
+from src.bot.di import AppContext
+from src.database.repositories import JobRepository, UserRepository
+from src.providers.base import ImageProviderUnavailable
+from tests.conftest import (
+    FakeImageProvider,
+    FakeLLM,
+    make_update_message,
+    onboard,
+    tg_user,
+)
+
+
+async def _submit_photo(ctx: AppContext, uid: int, text: str):
+    async with ctx.db.session() as session:
+        user = await UserRepository(session).get_by_telegram_id(uid)
+    return await ctx.image_service.submit(user, text, 42)
+
+
+async def test_photo_success(ctx: AppContext, dp, bot, fake_llm: FakeLLM) -> None:
+    user_a = tg_user(8001, "Hana")
+    await onboard(ctx, 8001)
+    await dp.feed_update(bot, make_update_message(8001, user_a, "/photo Лея в осеннем парке"))
+    assert "создаётся" in bot.last_text()
+
+    async with ctx.db.session() as session:
+        job = await JobRepository(session).queued_jobs()
+        assert len(job) == 1
+        job_id = job[0].id
+        assert job[0].status == "queued"
+
+    # воркер выполняет задачу
+    await ctx.image_service.run_job(job_id, bot)
+
+    assert any(item[0] == "photo" for item in bot.sent)
+    async with ctx.db.session() as session:
+        done = await JobRepository(session).get(job_id)
+        assert done is not None and done.status == "done"
+        assert done.image_prompt_json
+        request = json.loads(done.image_prompt_json)
+        assert request["prompt"]
+    # временный файл удалён после отправки
+    remaining = list(ctx.storage.temp_dir.glob("img_*.png"))
+    assert remaining == []
+
+
+async def test_photo_job_flow_through_worker(ctx: AppContext, bot, fake_llm: FakeLLM) -> None:
+    """Полный цикл: submit -> очередь -> воркер -> отправка."""
+    await onboard(ctx, 8002)
+    result = await _submit_photo(ctx, 8002, "Лея читает книгу у окна")
+    assert result.ok and result.job_id
+    await ctx.image_service.queue.put(result.job_id)
+    job_id = await asyncio.wait_for(ctx.image_service.queue.get(), timeout=5)
+    await ctx.image_service.run_job(job_id, bot)
+    assert any(item[0] == "photo" for item in bot.sent)
+
+
+async def test_nsfw_photo_requires_consent(ctx: AppContext, dp, bot, fake_llm: FakeLLM) -> None:
+    user_a = tg_user(8003, "Ira")
+    await onboard(ctx, 8003, nsfw=False)  # БЕЗ NSFW-согласия
+    fake_llm.image_prompt["nsfw"] = True  # LLM классифицировал запрос как эротический
+    await dp.feed_update(bot, make_update_message(8003, user_a, "/photo нежное эротическое фото Леи"))
+    assert any("согласи" in t for t in bot.texts())
+    async with ctx.db.session() as session:
+        jobs = await JobRepository(session).queued_jobs()
+        assert jobs == []
+
+
+async def test_nsfw_photo_allowed_with_consent(ctx: AppContext, fake_llm: FakeLLM) -> None:
+    await onboard(ctx, 8004, nsfw=True)
+    fake_llm.image_prompt["nsfw"] = True
+    result = await _submit_photo(ctx, 8004, "эротическая фотосессия Леи, взрослый контент")
+    assert result.ok and result.job_id
+
+
+async def test_moderation_blocks_minor_image_request(ctx: AppContext, dp, bot) -> None:
+    user_a = tg_user(8005, "Jon")
+    await onboard(ctx, 8005)
+    await dp.feed_update(bot, make_update_message(8005, user_a, "/photo девочка 14 лет в школьной форме"))
+    assert any("не могу" in t or "18" in t for t in bot.texts())
+    async with ctx.db.session() as session:
+        jobs = await JobRepository(session).queued_jobs()
+        assert jobs == []
+
+
+async def test_comfyui_unavailable_friendly_error(ctx: AppContext, fake_image_provider: FakeImageProvider, bot) -> None:
+    await onboard(ctx, 8006)
+    fake_image_provider.fail_with = ImageProviderUnavailable("ComfyUI не отвечает: 127.0.0.1:8188")
+    result = await _submit_photo(ctx, 8006, "Лея на пляже")
+    assert result.ok and result.job_id
+    await ctx.image_service.run_job(result.job_id, bot)
+    error_text = " ".join(bot.texts())
+    assert "недоступ" in error_text
+    # В сообщении нет внутренних путей и stack trace
+    assert "/home/" not in error_text
+    assert "Traceback" not in error_text
+    async with ctx.db.session() as session:
+        job = await JobRepository(session).get(result.job_id)
+        assert job is not None and job.status == "failed"
+        assert job.error_code == "image_provider_unavailable"
+
+
+async def test_photo_rate_limit(ctx: AppContext, bot) -> None:
+    await onboard(ctx, 8007)
+    result1 = await _submit_photo(ctx, 8007, "первая картинка")
+    assert result1.ok
+    result2 = await _submit_photo(ctx, 8007, "вторая картинка")
+    assert not result2.ok
+    assert result2.refusal_code == "rate_limited"
+    async with ctx.db.session() as session:
+        jobs = await JobRepository(session).queued_jobs()
+        assert len(jobs) == 1
+
+
+async def test_photo_via_state_flow(ctx: AppContext, dp, bot) -> None:
+    """/photo без текста -> FSM-запрос -> отправка картинки воркером."""
+    user_a = tg_user(8008, "Nora")
+    await onboard(ctx, 8008)
+    await dp.feed_update(bot, make_update_message(8008, user_a, "/photo"))
+    assert any("Что нарисовать" in t for t in bot.texts())
+    # пользователь отправляет описание (StateFilter PhotoStates.prompt)
+    await dp.feed_update(bot, make_update_message(8008, user_a, "Лея на балконе с кофе"))
+    assert "создаётся" in bot.last_text()
+    async with ctx.db.session() as session:
+        jobs = await JobRepository(session).queued_jobs()
+        assert len(jobs) == 1
+        job_id = jobs[0].id
+        assert "балкон" in jobs[0].request_text
+    await ctx.image_service.run_job(job_id, bot)
+    assert any(item[0] == "photo" for item in bot.sent)
