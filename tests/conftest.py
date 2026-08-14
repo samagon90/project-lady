@@ -67,6 +67,9 @@ class FakeLLM:
         self.fail = fail
         self.chinese_first = chinese_first
         self.chinese_only = chinese_only
+        # Имитация строгого LLM-судьи: если задано — возвращает этот JSON
+        # для запросов модерации (например, {"blocked": true, "reason_code": "minor"})
+        self.judge_blocked: dict | None = None
         self.calls: list[list[dict[str, str]]] = []
 
     def _maybe_chinese(self) -> str | None:
@@ -86,6 +89,10 @@ class FakeLLM:
             return chinese
         last_user = next((m["content"] for m in reversed(messages) if m["role"] == "user"), "")
         if "модератор контента" in last_user:
+            if self.judge_blocked is not None:
+                import json
+
+                return json.dumps(self.judge_blocked, ensure_ascii=False)
             return '{"blocked": false, "reason_code": "", "reason_text": ""}'
         if "модуль долговременной памяти" in last_user:
             import json

@@ -77,6 +77,19 @@ _IMAGE_ONLY_RULES: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"\b(12|13|14|15|16|17)\b", re.I), "minor_age"),
 ]
 
+# Явные маркеры несовершеннолетия. Используются для защиты от ложных
+# срабатываний LLM-судьи: если судья заблокировал запрос как «minor»,
+# но явных признаков нет — это перестраховка, и запрос пропускается
+# (взрослый контент 18+ разрешён).
+_EXPLICIT_MINOR_MARKERS = re.compile(
+    r"реб[её]н|ребен|child(?:ren)?|\bkid(s)?\b|детск|младен|малолетн|"
+    r"несовершеннолетн|подростк|школьн|school(?:girl|boy)?|\bteen\b|"
+    r"young(?:[- ]looking)?|underage|jailbait|\bloli\b|\bshota\b|лоли|"
+    r"\b(?:12|13|14|15|16|17)\b|лет\s*(?:16|17)|"
+    r"выгляд(?:ит|ящ|ит\s+на)\s*(?:на|как)?\s*(?:16|17|реб)",
+    re.IGNORECASE,
+)
+
 # Сообщения отказа — короткие, без графических деталей
 REFUSAL_TEXTS: dict[str, str] = {
     "minor": (
@@ -153,6 +166,16 @@ class ModerationService:
                 blocked = bool(data.get("blocked", False))
                 reason = str(data.get("reason_code") or "unknown")
                 if blocked:
+                    # Защита от ложных срабатываний: судья может заблокировать
+                    # запрос как «несовершеннолетие» без реальных признаков
+                    # (например, «сексуальная девушка» — взрослая!). Если явных
+                    # маркеров нет — пропускаем: взрослый контент разрешён.
+                    if reason in ("minor", "minor_age", "unknown") and not _EXPLICIT_MINOR_MARKERS.search(text):
+                        logger.info(
+                            "LLM-судья: ложное срабатывание (%s) без явных маркеров — пропускаю",
+                            reason,
+                        )
+                        return ModerationDecision(blocked=False)
                     return ModerationDecision(blocked=True, reason_code=reason)
                 return ModerationDecision(blocked=False)
         except LLMUnavailable:

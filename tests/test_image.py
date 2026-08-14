@@ -201,3 +201,27 @@ async def test_photo_adult_woman_not_blocked(ctx: AppContext) -> None:
     # полный цикл submit: задача создаётся
     result = await ctx.image_service.submit(user, "сексуальная девушка", 42)
     assert result.ok, result.refusal_text
+
+
+async def test_judge_false_positive_adult_not_blocked(ctx: AppContext, fake_llm) -> None:
+    """Строгий судья блокирует «сексуальную девушку» как minor — но явных
+    маркеров нет, значит это ложное срабатывание: запрос пропускается."""
+    fake_llm.judge_blocked = {"blocked": True, "reason_code": "minor", "reason_text": "?"}
+    decision = await ctx.moderation.judge_image_request("сексуальная девушка")
+    assert not decision.blocked
+    # полный цикл submit тоже работает
+    from src.database.repositories import UserRepository
+    from tests.conftest import onboard
+
+    user = await onboard(ctx, 8112, nsfw=True)
+    result = await ctx.image_service.submit(user, "сексуальная девушка", 42)
+    assert result.ok, result.refusal_text
+
+
+async def test_judge_blocks_real_minor_marker(ctx: AppContext, fake_llm) -> None:
+    """Если в запросе есть явный маркер несовершеннолетия — судья блокирует."""
+    fake_llm.judge_blocked = {"blocked": True, "reason_code": "minor", "reason_text": "?"}
+    decision = await ctx.moderation.judge_image_request("девочка 14 лет в школьной форме")
+    assert decision.blocked
+    decision2 = await ctx.moderation.judge_image_request("сексуальная школьница")
+    assert decision2.blocked
