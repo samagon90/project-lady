@@ -121,6 +121,41 @@ async def on_text(message: Message, bot: Bot, app_ctx: AppContext, user: DbUser 
             )
             return
 
+    # «Покажи себя» — показываем аватар Лилит (НЕ генерацию!)
+    _SHOW_SELF = re.compile(
+        r"(покажи\s+(мне\s+)?себя|как\s+ты\s+выгляд|покажи\s+свою\s+фото|"
+        r"покажи\s+свою\s+фотку|покажи\s+свою\s+картинку|покажи\s+свой\s+аватар|"
+        r"твоё\s+фото|твоя\s+фотка|покажи\s+как\s+ты\s+выглядишь)",
+        re.IGNORECASE,
+    )
+    if _SHOW_SELF.search(text):
+        from pathlib import Path
+
+        async with app_ctx.db.session() as session:
+            prefs = await PreferencesRepository(session).get_or_create(user)
+        avatar = (
+            Path("assets/lilith_avatar_anime.png")
+            if prefs.image_style == "anime"
+            else Path("assets/lilith_avatar.png")
+        )
+        avatar_path = app_ctx.settings.resolve_path(avatar)
+        if avatar_path.exists():
+            await bot.send_photo(
+                chat_id=message.chat.id,
+                photo=FSInputFile(str(avatar_path)),
+                caption=(
+                    "🖤 Вот я, мой дорогой. "
+                    + ("🖌 рисованный стиль" if prefs.image_style == "anime" else "📸 реалистичный")
+                    + ". Хочешь, нарисую себя в другом наряде?"
+                ),
+            )
+        else:
+            await bot.send_message(
+                chat_id=message.chat.id,
+                text="🖤 Я — Лилит. Аватар пока не загружен, но я здесь, с тобой.",
+            )
+        return
+
     # Пользователь просит картинку без команды /photo — запускаем генерацию.
     # Условие: (а) явные просьбы (нарисуй/сгенерируй/пришли/кинь/покажи/дай/хочу...)
     # или (б) в фразе есть слово про фото/картинку И слово про взрослый контент

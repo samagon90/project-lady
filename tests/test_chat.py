@@ -230,3 +230,30 @@ async def test_speech_style_in_system_prompt(ctx: AppContext, dp, bot, fake_llm)
     assert fake_llm.calls
     system = fake_llm.calls[-1][0]["content"]
     assert "грубо и отрывисто" in system
+
+
+async def test_show_self_sends_avatar(ctx: AppContext, dp, bot) -> None:
+    """«покажи мне себя» отправляет АВАТАР, а не запускает генерацию."""
+    from src.database.repositories import JobRepository
+    from tests.conftest import make_update_message, onboard, tg_user
+
+    await onboard(ctx, 9997, nsfw=True)
+    user_a = tg_user(9997, "ShowSelf")
+    await dp.feed_update(bot, make_update_message(9997, user_a, "покажи мне себя"))
+    # Отправлено фото (аватар), генерация НЕ запускалась
+    assert any(item[0] == "photo" for item in bot.sent)
+    async with ctx.db.session() as session:
+        jobs = await JobRepository(session).queued_jobs()
+        assert jobs == [], "генерация не должна запускаться"
+    assert any("Вот я" in item[2].get("caption", "") for item in bot.sent if item[0] == "photo")
+
+
+async def test_show_self_variants(ctx: AppContext, dp, bot) -> None:
+    from tests.conftest import make_update_message, onboard, tg_user
+
+    await onboard(ctx, 9998, nsfw=True)
+    user_a = tg_user(9998, "ShowSelf2")
+    for phrase in ["покажи себя", "как ты выглядишь", "покажи свою фотку"]:
+        await dp.feed_update(bot, make_update_message(9998, user_a, phrase))
+    photos = [item for item in bot.sent if item[0] == "photo"]
+    assert len(photos) >= 3, "на каждую фразу должен приходить аватар"
