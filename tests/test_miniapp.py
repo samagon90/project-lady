@@ -101,3 +101,20 @@ async def test_miniapp_api_me_no_nested_session(ctx) -> None:
     assert resp.status == 200, resp.body
     data = json.loads(resp.body)
     assert data["consent_nsfw"] is True
+
+
+async def test_miniapp_static_pages_serve_200(ctx) -> None:
+    """Статика Mini App отдаётся без 500 (content_type без charset в строке)."""
+    import aiohttp
+
+    server = MiniAppServer(ctx.db, "123:TESTTOKEN")
+    await server.start()
+    try:
+        async with aiohttp.ClientSession() as session:
+            for path in ("/", "/app.js", "/style.css"):
+                async with session.get(f"http://127.0.0.1:8001{path}") as r:
+                    assert r.status == 200, f"{path} -> {r.status}"
+                    text = await r.text()
+                    assert len(text) > 0
+    finally:
+        await server.stop()

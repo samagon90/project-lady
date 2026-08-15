@@ -101,7 +101,8 @@ class MiniAppServer:
             return web.Response(text="Mini App files not found", status=500)
         return web.Response(
             text=path.read_text(encoding="utf-8"),
-            content_type="text/html; charset=utf-8",
+            content_type="text/html",
+            charset="utf-8",
         )
 
     async def _static_js(self, request: web.Request) -> web.Response:
@@ -110,13 +111,15 @@ class MiniAppServer:
             return web.Response(text="app.js not found", status=500)
         return web.Response(
             text=path.read_text(encoding="utf-8"),
-            content_type="application/javascript; charset=utf-8",
+            content_type="application/javascript",
+            charset="utf-8",
         )
 
     async def _static_css(self, request: web.Request) -> web.Response:
         return web.Response(
             text=(MINIAPP_DIR / "style.css").read_text(encoding="utf-8"),
-            content_type="text/css; charset=utf-8",
+            content_type="text/css",
+            charset="utf-8",
         )
 
     async def _api_avatar(self, request: web.Request) -> web.StreamResponse:
