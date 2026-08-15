@@ -79,14 +79,15 @@ async def on_text(message: Message, bot: Bot, app_ctx: AppContext, user: DbUser 
         )
         return
 
-    # Пользователь просит картинку без команды /photo — запускаем генерацию
-    # (второй паттерн ловит «пришли голую фотку», «хочу эротическое фото» и т.п.)
-    _PHOTO_WITH_ADULT = re.compile(
-        r"(фото|фотку|фотки|картинку|картинки|фотографию|фотография)\b.*"
-        r"(гол|обнаж|секс|эрот|ню|nude|naked|nsfw)",
-        re.IGNORECASE,
-    )
-    if _PHOTO_INTENT.search(text) or _PHOTO_WITH_ADULT.search(text):
+    # Пользователь просит картинку без команды /photo — запускаем генерацию.
+    # Условие: (а) явные просьбы (нарисуй/сгенерируй/пришли/кинь/покажи/дай/хочу...)
+    # или (б) в фразе есть слово про фото/картинку И слово про взрослый контент
+    # (гол/обнаж/секс/эрот/ню/nude/naked/nsfw) — в ЛЮБОМ порядке,
+    # чтобы ловить и «пришли голую фотку», и «пришли мне голую фотку»,
+    # и «хочу фото с эротикой».
+    _PHOTO_WORD = re.compile(r"(фото|фотку|фотки|картинку|картинки|фотографию|фотография|изображени)", re.IGNORECASE)
+    _ADULT_WORD = re.compile(r"(гол|обнаж|секс|эрот|ню|nude|naked|nsfw)", re.IGNORECASE)
+    if _PHOTO_INTENT.search(text) or (_PHOTO_WORD.search(text) and _ADULT_WORD.search(text)):
         # убираем «служебные» слова, оставляем описание
         prompt = _PHOTO_INTENT.sub("", text).strip(" ,.!?:;-")
         if not prompt:

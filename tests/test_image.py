@@ -286,3 +286,29 @@ async def test_photo_intent_prishli_goluyu(ctx: AppContext, dp, bot) -> None:
     async with ctx.db.session() as session:
         jobs = await JobRepository(session).queued_jobs()
         assert len(jobs) == 1
+
+
+async def test_photo_intent_with_mne(ctx: AppContext, dp, bot) -> None:
+    """«пришли мне голую фотку» (со словом «мне») запускает генерацию."""
+    from tests.conftest import make_update_message, onboard, tg_user
+
+    user_a = tg_user(8114, "Roma")
+    await onboard(ctx, 8114)
+    await dp.feed_update(bot, make_update_message(8114, user_a, "пришли мне голую фотку"))
+    assert "создаётся" in bot.last_text()
+    async with ctx.db.session() as session:
+        jobs = await JobRepository(session).queued_jobs()
+        assert len(jobs) == 1
+
+
+async def test_photo_intent_reversed_order(ctx: AppContext, dp, bot) -> None:
+    """«хочу фото с эротикой» (порядок слов любой) запускает генерацию."""
+    from tests.conftest import make_update_message, onboard, tg_user
+
+    user_a = tg_user(8115, "Vova")
+    await onboard(ctx, 8115)
+    await dp.feed_update(bot, make_update_message(8115, user_a, "хочу фото с эротикой"))
+    assert "создаётся" in bot.last_text()
+    async with ctx.db.session() as session:
+        jobs = await JobRepository(session).queued_jobs()
+        assert len(jobs) == 1
