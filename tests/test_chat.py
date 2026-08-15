@@ -257,3 +257,36 @@ async def test_show_self_variants(ctx: AppContext, dp, bot) -> None:
         await dp.feed_update(bot, make_update_message(9998, user_a, phrase))
     photos = [item for item in bot.sent if item[0] == "photo"]
     assert len(photos) >= 3, "на каждую фразу должен приходить аватар"
+
+
+async def test_show_self_with_emotion(ctx: AppContext, dp, bot) -> None:
+    """«покажи себя страстной» — аватар с эмоцией passion."""
+    from tests.conftest import make_update_message, onboard, tg_user
+
+    await onboard(ctx, 9999, nsfw=True)
+    user_a = tg_user(9999, "ShowPassion")
+    await dp.feed_update(bot, make_update_message(9999, user_a, "покажи себя страстной"))
+    photos = [item for item in bot.sent if item[0] == "photo"]
+    assert photos, "аватар должен прийти"
+    caption = photos[-1][2].get("caption", "")
+    assert "страстная" in caption
+    # файл эмоции существует
+    from pathlib import Path
+
+    assert Path("assets/emotions/lilith_passion.png").exists()  # noqa: ASYNC240
+
+
+async def test_show_self_random_emotion(ctx: AppContext, dp, bot) -> None:
+    """«покажи себя» без уточнения — случайная эмоция, файл существует."""
+    import glob
+
+    from tests.conftest import make_update_message, onboard, tg_user
+
+    await onboard(ctx, 10000, nsfw=True)
+    user_a = tg_user(10000, "ShowRandom")
+    await dp.feed_update(bot, make_update_message(10000, user_a, "покажи себя"))
+    photos = [item for item in bot.sent if item[0] == "photo"]
+    assert photos, "аватар должен прийти"
+    # все эмоции-файлы на месте
+    for emo in ("neutral", "flirt", "passion", "playful", "tender", "serious"):
+        assert glob.glob(f"assets/emotions/lilith_{emo}.png"), f"нет {emo}"

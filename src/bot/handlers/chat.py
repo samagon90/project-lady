@@ -133,20 +133,50 @@ async def on_text(message: Message, bot: Bot, app_ctx: AppContext, user: DbUser 
 
         async with app_ctx.db.session() as session:
             prefs = await PreferencesRepository(session).get_or_create(user)
-        avatar = (
-            Path("assets/lilith_avatar_anime.png")
-            if prefs.image_style == "anime"
-            else Path("assets/lilith_avatar.png")
-        )
+        style = "anime" if prefs.image_style == "anime" else "realistic"
+
+        # Определяем эмоцию по тексту («покажи себя страстной» -> passion) или случайную
+        _EMOTION_WORDS = [
+            (re.compile(r"страст|секс|эрот|хочу|гол|разврат", re.I), "passion"),
+            (re.compile(r"весел|смешн|шут|игрив|озорн|задорн", re.I), "playful"),
+            (re.compile(r"нежн|любов|мил|ласков|тёпл|тепл|скуча", re.I), "tender"),
+            (re.compile(r"серьез|серьёз|строг|важн|зл", re.I), "serious"),
+            (re.compile(r"флирт|кокет|соблазн|красив|обольст", re.I), "flirt"),
+        ]
+        emotion = None
+        for pattern, emo in _EMOTION_WORDS:
+            if pattern.search(text):
+                emotion = emo
+                break
+        if emotion is None:
+            import random
+
+            emotion = random.choice(["neutral", "flirt", "passion", "playful", "tender", "serious"])
+
+        avatar = Path("assets/emotions") / f"lilith_{emotion}{'_anime' if style == 'anime' else ''}.png"
+        if not avatar.exists():
+            avatar = (
+                Path("assets/lilith_avatar_anime.png")
+                if style == "anime"
+                else Path("assets/lilith_avatar.png")
+            )
         avatar_path = app_ctx.settings.resolve_path(avatar)
+        labels = {
+            "neutral": "спокойная 😌",
+            "flirt": "игривая 😏",
+            "passion": "страстная 🔥",
+            "playful": "озорная 😜",
+            "tender": "нежная 💗",
+            "serious": "серьёзная 😐",
+        }
         if avatar_path.exists():
             await bot.send_photo(
                 chat_id=message.chat.id,
                 photo=FSInputFile(str(avatar_path)),
                 caption=(
-                    "🖤 Вот я, мой дорогой. "
-                    + ("🖌 рисованный стиль" if prefs.image_style == "anime" else "📸 реалистичный")
-                    + ". Хочешь, нарисую себя в другом наряде?"
+                    f"🖤 Вот я, мой дорогой — {labels.get(emotion, emotion)}. "
+                    + ("🖌 рисованный стиль" if style == "anime" else "📸 реалистичный")
+                    + ". Скажи «покажи себя страстной» — и я сменю настроение."
                 ),
             )
         else:
