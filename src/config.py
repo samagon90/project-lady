@@ -13,7 +13,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
-APP_VERSION = "1.8.1"
+APP_VERSION = "1.8.2"
 
 
 class Settings(BaseSettings):
@@ -32,7 +32,7 @@ class Settings(BaseSettings):
 
     # --- LLM ---
     # Провайдер: ollama (локально) | openrouter | venice
-    llm_provider: str = "openrouter"
+    llm_provider: str = "ollama"
     # Ollama (если llm_provider=ollama):
     llm_base_url: str = "http://127.0.0.1:11434"
     # OpenRouter: ключ и модель (NSFW-дружественные — см. README).
