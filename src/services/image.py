@@ -188,6 +188,11 @@ class ImageService:
         request_text = text
         if outfit:
             request_text = f"{text} (сейчас Лилит одета: {outfit})"
+        if self.settings.comfyui_nsfw_extreme:
+            request_text = (
+                f"{request_text} (ЭКСТРЕМАЛЬНЫЙ NSFW: если запрос эротический — "
+                "добавь теги hardcore, detailed genitals, explicit sex)"
+            )
         style_hint = (
             "photorealistic, realistic photo, 8k"
             if image_style == "realistic"
@@ -225,12 +230,17 @@ class ImageService:
                 "pale skin, freckles, tall, slim, high cheekbones, 24 years old, "
                 "white blouse, pleated plaid mini skirt, thigh-high stockings"
             )
+        extreme_tags = (
+            ", hardcore, detailed genitals, explicit sex"
+            if self.settings.comfyui_nsfw_extreme
+            else ""
+        )
         fallback_prompt = (
             fallback_subject + ", "
             + _translate_request_to_tags(text)
             + (f", wearing {outfit}" if outfit else "")
             + ", nude, topless, explicit, nsfw, uncensored, full body, "
-            "sensual pose, " + style_hint
+            "sensual pose" + extreme_tags + ", " + style_hint
         )
         return ImageRequest(
             prompt=str(data.get("prompt") or fallback_prompt),

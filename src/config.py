@@ -13,7 +13,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
-APP_VERSION = "1.7.0"
+APP_VERSION = "1.7.1"
 
 
 class Settings(BaseSettings):
@@ -46,7 +46,7 @@ class Settings(BaseSettings):
     venice_model: str = "venice/llama-3.3-70b"
     # Общие параметры LLM
     llm_model: str = "qwen2.5:7b"  # используется только для ollama
-    llm_temperature: float = 0.8
+    llm_temperature: float = 1.0
     llm_max_tokens: int = 1024
     llm_timeout_seconds: float = 120.0
     llm_retries: int = 2
@@ -59,7 +59,7 @@ class Settings(BaseSettings):
     memory_top_k: int = 6
     memory_min_confidence: float = 0.55
     memory_extract_every_n_messages: int = 5
-    memory_store_sensitivity: str = "low,medium"
+    memory_store_sensitivity: str = "low,medium,high"
     memory_summarize_every_n_messages: int = 40
     memory_summarize_max_history: int = 200
     recent_messages_for_context: int = 20
@@ -74,6 +74,9 @@ class Settings(BaseSettings):
     # Отдельные checkpoint/LoRA для NSFW-запросов (18+, вымышленный персонаж).
     # Если заданы — при эротическом запросе бот автоматически использует их.
     comfyui_nsfw_checkpoint: str = ""
+    # Экстремальные NSFW-теги (hardcore, detailed genitals) — по умолчанию
+    # выключены; включите, если модель-художник поддерживает и вам это нужно.
+    comfyui_nsfw_extreme: bool = False
     comfyui_nsfw_lora: str = ""
     comfyui_timeout_seconds: float = 600.0
     comfyui_poll_interval_seconds: float = 2.0
