@@ -13,15 +13,20 @@
 """
 from __future__ import annotations
 
+import json
 import os
 import shutil
+import struct
 import subprocess
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 VENV_PY = ROOT / ".venv" / "Scripts" / "python.exe"
-VERSION = "0.2.8"
+VERSION = "0.2.9"
+
+# Минимальный размер настоящего checkpoint (меньше — точно HTML/мусор)
+MIN_CHECKPOINT_BYTES = 50 * 1024 * 1024
 
 try:
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -272,6 +277,35 @@ def ensure_voice() -> None:
     print("✅ Русский голос установлен.")
 
 
+def is_valid_checkpoint(path: Path) -> bool:
+    """Проверяет, что файл — настоящий checkpoint для Stable Diffusion.
+
+    civitai.com часто отдаёт вместо модели HTML-страницу (Cloudflare) или
+    другой файл; ComfyUI тогда пишет «Could not detect model type».
+    Проверяем: размер больше 50 МБ и заголовок safetensors содержит ключи
+    диффузионной модели (model.diffusion_model) и текстовой части/VAE.
+    """
+    try:
+        if path.stat().st_size < MIN_CHECKPOINT_BYTES:
+            return False
+        with open(path, "rb") as f:
+            head = f.read(8)
+            if len(head) < 8:
+                return False
+            n = struct.unpack("<Q", head)[0]
+            if n <= 0 or n > 512 * 1024 * 1024:
+                return False
+            header = f.read(n)
+            data = json.loads(header)
+        keys = " ".join(data.keys())
+        has_diff = "model.diffusion_model" in keys
+        has_cond = "cond_stage_model" in keys or "text_model" in keys
+        has_vae = "first_stage_model" in keys
+        return has_diff and (has_cond or has_vae)
+    except Exception:  # noqa: BLE001
+        return False
+
+
 def ensure_comfyui() -> None:
     """Опциональная установка ComfyUI (для картинок /photo). Долго (~15-30 мин)."""
     comfy_dir = ROOT.parent / "ComfyUI"
@@ -316,21 +350,57 @@ def ensure_comfyui() -> None:
     checkpoints = comfy_dir / "models" / "checkpoints"
     checkpoints.mkdir(parents=True, exist_ok=True)
     target = checkpoints / "majicmixRealistic_v7.safetensors"
+    # Если файл есть, но это НЕ настоящая модель (civitai отдал HTML-страницу) —
+    # удаляем и качаем заново
+    if target.exists() and not is_valid_checkpoint(target):
+        print(f"⚠️ Файл {target.name} есть, но это НЕ модель (битая загрузка).")
+        print("   Удаляю и скачиваю заново из другого источника...")
+        try:
+            target.unlink()
+        except OSError:
+            pass
     if target.exists():
         print(f"✅ Модель уже есть: {target.name}")
     else:
         print()
         print("Скачиваю модель-«художника» majicMIX realistic (~2 ГБ, NSFW 18+)...")
         print("Это 5-30 минут. Не закрывайте окно.")
-        model_url = "https://civitai.com/api/download/models/87927"
-        if download(model_url, target):
-            print(f"✅ Модель сохранена: {target}")
-        else:
+        # Несколько источников: civitai может отдавать страницу вместо файла,
+        # поэтому пробуем по очереди, пока не скачается настоящая модель.
+        sources = [
+            ("civitai.com", "https://civitai.com/api/download/models/87927"),
+            (
+                "зеркало HuggingFace (lllyasviel)",
+                "https://huggingface.co/lllyasviel/fav_models/resolve/main/fav/majicmixRealistic_v7.safetensors",
+            ),
+            (
+                "зеркало HuggingFace (digiplay)",
+                "https://huggingface.co/digiplay/majicMIX_realistic_v7/resolve/main/majicmixRealistic_v7.safetensors",
+            ),
+            (
+                "Stable Diffusion 1.5 (универсальная, надёжная)",
+                "https://huggingface.co/stable-diffusion-v1-5/stable-diffusion-v1-5/resolve/main/v1-5-pruned-emaonly.safetensors",
+            ),
+        ]
+        ok = False
+        for name, url in sources:
+            print(f"Пробую источник: {name}...")
+            tmp = checkpoints / "download_tmp.safetensors"
+            if download(url, tmp) and is_valid_checkpoint(tmp):
+                tmp.rename(target)
+                ok = True
+                print(f"✅ Модель сохранена: {target.name} (источник: {name})")
+                break
+            try:
+                tmp.unlink(missing_ok=True)
+            except OSError:
+                pass
+        if not ok:
             print("❌ Не удалось скачать модель автоматически.")
             print("   Позже сделайте вручную: civitai.com → «explicit» → majicMIX realistic,")
             print("   файл .safetensors → ComfyUI/models/checkpoints/")
-    # прописываем NSFW-модель в .env (если файл появился)
-    if target.exists():
+    # прописываем NSFW-модель в .env (если файл появился и он настоящий)
+    if target.exists() and is_valid_checkpoint(target):
         env = ROOT / ".env"
         if env.exists():
             text = env.read_text(encoding="utf-8")
@@ -526,6 +596,10 @@ def check_components() -> None:
         missing.append("языковая модель (в .env указана, но не скачана)")
     if not missing and not llm_speaks_russian():
         missing.append("проверка: модель отвечает иероглифами или не по-русски")
+    # Модель-художник для картинок: если файл есть, но битый — предложить перекачать
+    comfy_target = ROOT.parent / "ComfyUI" / "models" / "checkpoints" / "majicmixRealistic_v7.safetensors"
+    if comfy_target.exists() and not is_valid_checkpoint(comfy_target):
+        missing.append("модель-художник (файл битый — скачаю заново)")
     if not missing:
         print("✅ Все внешние программы и модель на месте.")
         return
