@@ -13,7 +13,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
-APP_VERSION = "1.2.2"
+APP_VERSION = "1.3.0"
 
 
 class Settings(BaseSettings):
@@ -99,6 +99,9 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     log_file: Path | None = Path("data/bot.log")
     audit_enabled: bool = True
+
+    # Лилит прикрепляет к каждому ответу аватар с эмоцией (true/false)
+    chat_avatar_enabled: bool = True
 
     # --- Проактивные сообщения (Лилит пишет первой) ---
     proactive_enabled: bool = True

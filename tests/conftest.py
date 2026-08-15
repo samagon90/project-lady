@@ -202,7 +202,9 @@ class FakeBot:
         return TgUser(id=1, is_bot=True, first_name="Lilith Bot")
 
     def texts(self) -> list[str]:
-        return [item[2]["text"] for item in self.sent if item[0] == "message"]
+        result = [item[2]["text"] for item in self.sent if item[0] == "message"]
+        result += [item[2].get("caption", "") for item in self.sent if item[0] == "photo"]
+        return result
 
     def last_text(self) -> str:
         return self.texts()[-1]

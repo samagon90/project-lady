@@ -234,7 +234,11 @@ async def on_text(message: Message, bot: Bot, app_ctx: AppContext, user: DbUser 
     if not result.text:
         return
 
-    await bot.send_message(chat_id=message.chat.id, text=result.text)
+    # Лилит прикрепляет к каждому ответу свой аватар с эмоцией по тексту ответа
+    if app_ctx.settings.chat_avatar_enabled:
+        await _send_reply_with_avatar(bot, message.chat.id, user, app_ctx, result.text)
+    else:
+        await bot.send_message(chat_id=message.chat.id, text=result.text)
 
     # Голосовое сообщение (текст + voice), при недоступности TTS — только текст
     if result.voice_text:
@@ -252,3 +256,63 @@ async def on_text(message: Message, bot: Bot, app_ctx: AppContext, user: DbUser 
                     logger.warning("Не удалось отправить голосовое: %s", exc)
                 finally:
                     app_ctx.storage.remove(ogg_path)
+
+
+async def _send_reply_with_avatar(bot: Bot, chat_id: int, user: DbUser, app_ctx: AppContext, reply: str) -> None:
+    """Отправляет ответ Лилит как фото аватара с эмоцией + текст в подписи.
+
+    Эмоция определяется по тексту ответа; если файла эмоции нет — обычный текст.
+    """
+    from pathlib import Path
+
+    emotion = _detect_reply_emotion(reply)
+    async with app_ctx.db.session() as session:
+        prefs = await PreferencesRepository(session).get_or_create(user)
+    style = "anime" if prefs.image_style == "anime" else "realistic"
+
+    avatar = Path("assets/emotions") / f"lilith_{emotion}{'_anime' if style == 'anime' else ''}.png"
+    if not avatar.exists():
+        avatar = (
+            Path("assets/lilith_avatar_anime.png")
+            if style == "anime"
+            else Path("assets/lilith_avatar.png")
+        )
+    avatar_path = app_ctx.settings.resolve_path(avatar)
+    if avatar_path.exists():
+        try:
+            await bot.send_photo(
+                chat_id=chat_id,
+                photo=FSInputFile(str(avatar_path)),
+                caption=reply,
+            )
+            return
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Не удалось отправить аватар с эмоцией: %s", exc)
+    await bot.send_message(chat_id=chat_id, text=reply)
+
+
+def _detect_reply_emotion(text: str) -> str:
+    """Определяет эмоцию Лилит по тексту её ответа."""
+    t = text.lower()
+    pairs = [
+        (r"плач|груст|печал|обид|тоск|одинок|жаль|прости", "crying"),
+        (r"боюсь|страш|испуг|жутк|кошмар|опасн", "scared"),
+        (r"зл|бес(ишь|ит|ить|у|ят)|ненавиж|разозл|ярост|недовольн", "angry"),
+        (r"ревн|измен|другая|другой", "jealous"),
+        (r"горд|восхищ|молодец|круто|супер|топ", "proud"),
+        (r"скуч|устал|нудно|надоел|зев", "bored"),
+        (r"сон|спат|спать|ночь|зев", "sleepy"),
+        (r"восторг|вау|обалдет|невероят|офигеть|класс|потрясн", "excited"),
+        (r"смущ|стесн|красне|неловк", "shy"),
+        (r"удив|вот это да|ничего себе|неожидан|чтоо|правда\?", "surprised"),
+        (r"рад|счаст|улыб|отлично|прекрасн|клёво|здорово|замечательн|люблю тебя", "happy"),
+        (r"хочу|страст|поцелуй|разде|гол|секс|эрот|ночь|жела|возбужд", "passion"),
+        (r"нежн|мил|ласков|тёпл|тепл|скуча|обним|родн|мой хороший", "tender"),
+        (r"флирт|кокет|соблазн|красив|обольст|нрав|симпат", "flirt"),
+        (r"шут|смеш|ха-ха|прикол|весел|хихи", "playful"),
+        (r"серьез|серьёз|строг|важн|дело", "serious"),
+    ]
+    for pattern, emotion in pairs:
+        if re.search(pattern, t):
+            return emotion
+    return "neutral"

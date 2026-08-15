@@ -172,9 +172,14 @@ async def test_auto_nsfw_reply_with_consent(ctx: AppContext, dp, bot, fake_llm) 
     await onboard(ctx, 9993, nsfw=True)  # согласие есть, режим по умолчанию 0
     user_a = tg_user(9993, "NsfwUser")
     await dp.feed_update(bot, make_update_message(9993, user_a, "трахни меня"))
-    # LLM получил системный промпт с NSFW-инструкцией (mode=3)
-    last_call = fake_llm.calls[-1]
-    system = last_call[0]["content"]
+    # LLM получил системный промпт с NSFW-инструкцией (mode=3).
+    # Ищем вызов именно чата (с промптом персонажа), а не фонового извлечения.
+    chat_calls = [
+        c for c in fake_llm.calls
+        if c and c[0]["role"] == "system" and "Лилит" in c[0]["content"]
+    ]
+    assert chat_calls, "не найден вызов чата с системным промптом"
+    system = chat_calls[-1][0]["content"]
     assert "NSFW-режим" in system or "nsfw" in system.lower()
     assert "сексуальная игривая госпожа" in system
 
@@ -228,7 +233,12 @@ async def test_speech_style_in_system_prompt(ctx: AppContext, dp, bot, fake_llm)
     user_a = tg_user(9996, "StyleUser")
     await dp.feed_update(bot, make_update_message(9996, user_a, "привет"))
     assert fake_llm.calls
-    system = fake_llm.calls[-1][0]["content"]
+    chat_calls = [
+        c for c in fake_llm.calls
+        if c and c[0]["role"] == "system" and "Лилит" in c[0]["content"]
+    ]
+    assert chat_calls, "не найден вызов чата"
+    system = chat_calls[-1][0]["content"]
     assert "грубо и отрывисто" in system
 
 
@@ -290,3 +300,29 @@ async def test_show_self_random_emotion(ctx: AppContext, dp, bot) -> None:
     # все эмоции-файлы на месте
     for emo in ("neutral", "flirt", "passion", "playful", "tender", "serious"):
         assert glob.glob(f"assets/emotions/lilith_{emo}.png"), f"нет {emo}"
+
+
+async def test_reply_with_avatar_photo(ctx: AppContext, dp, bot, fake_llm) -> None:
+    """Ответ Лилит приходит как фото аватара с эмоцией + текст в подписи."""
+    from tests.conftest import make_update_message, onboard, tg_user
+
+    fake_llm.default_reply = "Ох, как же я тебя хочу… 🔥"
+    await onboard(ctx, 10001, nsfw=True)
+    user_a = tg_user(10001, "AvatarChat")
+    await dp.feed_update(bot, make_update_message(10001, user_a, "привет"))
+    photos = [item for item in bot.sent if item[0] == "photo"]
+    assert photos, "ответ должен прийти как фото"
+    caption = photos[-1][2].get("caption", "")
+    assert "хочу" in caption, "текст ответа должен быть в подписи"
+
+
+async def test_reply_avatar_emotion_detection() -> None:
+    """Детектор эмоции по тексту ответа."""
+    from src.bot.handlers.chat import _detect_reply_emotion
+
+    assert _detect_reply_emotion("Мне грустно без тебя") == "crying"
+    assert _detect_reply_emotion("Я так рада тебя видеть!") == "happy"
+    assert _detect_reply_emotion("Хочу тебя прямо сейчас") == "passion"
+    assert _detect_reply_emotion("Ты меня бесишь!") == "angry"
+    assert _detect_reply_emotion("Ха-ха, забавно") == "playful"
+    assert _detect_reply_emotion("Просто привет") == "neutral"
