@@ -117,6 +117,37 @@ class ChatService:
             raise LLMUnavailable("Модель недоступна") from exc
 
         reply = reply.strip()
+        # Авто-фикс пола: если Лилит написала о себе в мужском роде —
+        # переспрашиваем модель, требуя женские окончания.
+        if _has_masculine_self(reply):
+            logger.warning(
+                "Модель написала о себе в мужском роде (user %s) — переспрашиваю",
+                user.telegram_user_id,
+            )
+            fix_messages = [
+                *messages_for_llm,
+                {"role": "assistant", "content": truncate(reply, 500)},
+                {
+                    "role": "user",
+                    "content": (
+                        "Перепиши свой ответ: ты — женщина, говори о себе ТОЛЬКО "
+                        "в женском роде («я сказала», «я пришла», «я хотела», «готова»). "
+                        "Исправь все мужские окончания. Только исправленный текст."
+                    ),
+                },
+            ]
+            try:
+                fixed = (
+                    await self.llm.chat(
+                        fix_messages,
+                        temperature=self.settings.llm_temperature,
+                        max_tokens=self.settings.llm_max_tokens,
+                    )
+                ).strip()
+            except LLMUnavailable:
+                fixed = ""
+            if fixed and not _has_masculine_self(fixed):
+                reply = fixed
         # Защита от глючных моделей: если ответ содержит иероглифы (модель
         # «слетела» на китайский), переспрашиваем один раз, явно требуя русский.
         if contains_cjk(reply):
@@ -187,3 +218,19 @@ class ChatService:
         async with self.db.session() as session:
             await ConversationRepository(session).archive_active(user.id)
         await self.audit.log("conversation_reset", user=user)
+
+
+_MASCULINE_SELF = (
+    r"\b(я|а я|но я)\s+(пришёл|пришел|сказал|хотел|был|сделал|понял|устал|"
+    r"готов|рад|зол|уверен|занят|согласен|любил|ждал|видел|слышал|подумал|"
+    r"решил|вспомнил|забыл|нашёл|начал|закончил|ответил|спросил|посмотрел|"
+    r"услышал|почувствовал|захотел|смог|сумел|привык|успел|опоздал|вернулся|"
+    r"приехал|уехал|ушёл|вошёл|вышел)\b"
+)
+
+
+def _has_masculine_self(text: str) -> bool:
+    """Есть ли в тексте мужские формы от первого лица («я пришёл», «я был»)."""
+    import re
+
+    return bool(re.search(_MASCULINE_SELF, text.lower(), re.IGNORECASE))

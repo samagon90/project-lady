@@ -65,6 +65,7 @@ class FakeLLM:
         }
         self.echo_memory = echo_memory
         self.fail = fail
+        self.fix_reply = None  # если задан — возвращается при повторном вызове (переспросе)
         self.chinese_first = chinese_first
         self.chinese_only = chinese_only
         # Имитация строгого LLM-судьи: если задано — возвращает этот JSON
@@ -87,6 +88,11 @@ class FakeLLM:
         chinese = self._maybe_chinese()
         if chinese is not None:
             return chinese
+        # Если задан fix_reply и это повторный вызов (переспрос) — возвращаем его
+        if self.fix_reply is not None and len(self.calls) > 1:
+            last_user = messages[-1]["content"] if messages else ""
+            if "Перепиши свой ответ" in last_user or "Отвечай СТРОГО" in last_user:
+                return self.fix_reply
         last_user = next((m["content"] for m in reversed(messages) if m["role"] == "user"), "")
         if "модератор контента" in last_user:
             if self.judge_blocked is not None:

@@ -326,3 +326,33 @@ async def test_reply_avatar_emotion_detection() -> None:
     assert _detect_reply_emotion("Ты меня бесишь!") == "angry"
     assert _detect_reply_emotion("Ха-ха, забавно") == "playful"
     assert _detect_reply_emotion("Просто привет") == "neutral"
+
+
+async def test_masculine_self_detector() -> None:
+    """Детектор мужских форм от первого лица."""
+    from src.services.chat import _has_masculine_self
+
+    assert _has_masculine_self("Я пришёл к тебе")
+    assert _has_masculine_self("я сказал, что люблю")
+    assert _has_masculine_self("Я хотел тебя увидеть")
+    assert not _has_masculine_self("Я пришла и рада тебя видеть")
+    assert not _has_masculine_self("Я хотела сказать...")
+    assert not _has_masculine_self("Ты пришёл ко мне")  # про собеседника
+
+
+async def test_reply_masculine_auto_fix(ctx: AppContext, dp, bot, fake_llm) -> None:
+    """Если модель ответила в мужском роде — бот переспрашивает и исправляет."""
+    from tests.conftest import make_update_message, onboard, tg_user
+
+    # Первый ответ — мужской род, второй (после фикса) — женский
+    fake_llm.default_reply = "Я пришёл и хотел тебя увидеть"
+    fake_llm.fix_reply = "Я пришла и хотела тебя увидеть, мой дорогой"
+    await onboard(ctx, 10002, nsfw=True)
+    user_a = tg_user(10002, "GenderFix")
+    await dp.feed_update(bot, make_update_message(10002, user_a, "привет"))
+    # В подписи фото — исправленный ответ (женский род)
+    photos = [item for item in bot.sent if item[0] == "photo"]
+    assert photos
+    caption = photos[-1][2].get("caption", "")
+    assert "пришла" in caption
+    assert "пришёл" not in caption
