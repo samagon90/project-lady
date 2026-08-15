@@ -36,14 +36,20 @@
 
   let currentStyle = "realistic";
   let currentEmotion = "neutral";
+  let currentStage = 1; // 1=одета, 2=блузка расстёгнута, 3=в белье/чулках, 4=топлес
 
-  function setAvatar(emotion) {
+  function setAvatar(emotion, stage) {
     currentEmotion = emotion || "neutral";
-    el("avatar").src = "/api/avatar?style=" + currentStyle + "&emotion=" + currentEmotion;
+    if (stage) currentStage = Math.max(1, Math.min(4, stage));
+    const stagePath = currentStage > 1 ? "&stage=" + currentStage : "";
+    el("avatar").src = "/api/avatar?style=" + currentStyle + "&emotion=" + currentEmotion + stagePath;
     const labels = {
       neutral: "😌", flirt: "😏", passion: "🔥", playful: "😜", tender: "💗", serious: "😐"
     };
     el("emotion-tag").textContent = labels[currentEmotion] || "😌";
+    // индикатор раскованности
+    const mood = ["👗", "👙", "🩲", "🔥"][currentStage - 1];
+    el("mood-tag").textContent = mood + " " + currentStage + "/4";
   }
 
   // ---- Чат (диалог с Лилит через бота)
@@ -69,6 +75,8 @@
       .then(function (res) {
         if (res.reply) addMessage("assistant", res.reply);
         else addMessage("assistant", "…");
+        // Лилит реагирует: меняет позу (эмоция) и раскованность (stage)
+        if (res.emotion) setAvatar(res.emotion, res.stage || currentStage);
       })
       .catch(function () {
         addMessage("assistant", "Связь прервалась… Попробуй ещё раз.");

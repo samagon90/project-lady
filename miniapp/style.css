@@ -45,6 +45,18 @@ body {
   transition: opacity 0.4s ease;
 }
 
+#mood-tag {
+  position: absolute;
+  bottom: 10px;
+  right: 12px;
+  font-size: 14px;
+  background: rgba(0,0,0,0.45);
+  border-radius: 12px;
+  padding: 4px 10px;
+  border: 1px solid #55304a;
+  color: var(--text);
+}
+
 #emotion-tag {
   position: absolute;
   top: 10px;

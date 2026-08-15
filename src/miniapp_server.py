@@ -131,12 +131,19 @@ class MiniAppServer:
             emotion = "neutral"
         from pathlib import Path
 
+        stage = int(request.query.get("stage", "1") or "1")
+        stage = max(1, min(4, stage))
         if style == "anime":
             base = Path("assets/emotions") / f"lilith_{emotion}_anime.png"
             if not base.exists():
                 base = Path("assets/lilith_avatar_anime.png")
         else:
-            base = Path("assets/emotions") / f"lilith_{emotion}.png"
+            # Если запрошена стадия «раздевания» — берём из папки stage
+            staged = Path("assets/emotions/stage") / f"lilith_{emotion}_stage{stage}.png"
+            if stage > 1 and staged.exists():
+                base = staged
+            else:
+                base = Path("assets/emotions") / f"lilith_{emotion}.png"
             if not base.exists():
                 base = Path("assets/lilith_avatar.png")
         path = self._resolve_asset(base)
@@ -303,11 +310,13 @@ class MiniAppServer:
             user = await UserRepository(session).get_by_telegram_id(uid)
             if user is None:
                 return web.json_response({"error": "not_registered"}, status=404)
+        # Определяем эмоцию и «раскованность» (стадию) по тексту
+        emotion, stage = _detect_emotion_and_stage(text)
         try:
             result = await chat.handle_message(user, text, None)
         except Exception as exc:  # noqa: BLE001
             return web.json_response({"error": "llm_unavailable", "detail": str(exc)}, status=503)
-        return web.json_response({"reply": result.text})
+        return web.json_response({"reply": result.text, "emotion": emotion, "stage": stage})
 
     # ------------------------------------------------------------- lifecycle
 
@@ -323,4 +332,34 @@ class MiniAppServer:
             await self.runner.cleanup()
             self.runner = None
 
+
+
+
+def _detect_emotion_and_stage(text: str) -> tuple[str, int]:
+    """Определяет эмоцию Лилит и стадию «раскованности» (1-4) по тексту."""
+    import re as _re
+
+    t = text.lower()
+    if _re.search(r'страст|секс|эрот|хочу|гол|разврат|раздев|сними|трах|поцелуй', t):
+        emotion = "passion"
+    elif _re.search(r'нежн|любов|мил|ласков|тёпл|тепл|скуча|обним', t):
+        emotion = "tender"
+    elif _re.search(r'весел|смешн|шут|игрив|озорн|задорн', t):
+        emotion = "playful"
+    elif _re.search(r'серьез|серьёз|строг|важн|зл', t):
+        emotion = "serious"
+    elif _re.search(r'флирт|кокет|соблазн|красив|обольст|нрав', t):
+        emotion = "flirt"
+    else:
+        emotion = "neutral"
+    # Раскованность: растёт с взрослым/интимным контекстом
+    if _re.search(r'раздев|сними|гол|обнаж|голая|топлес', t):
+        stage = 4
+    elif _re.search(r'секс|трах|постел|член|киск|мин', t):
+        stage = 3
+    elif _re.search(r'страст|эрот|хочу|поцелуй|жела|возбужд', t):
+        stage = 2
+    else:
+        stage = 1
+    return emotion, stage
 
