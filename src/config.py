@@ -13,7 +13,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
-APP_VERSION = "0.2.9"
+APP_VERSION = "0.3.1"
 
 
 class Settings(BaseSettings):
@@ -97,6 +97,12 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     log_file: Path | None = Path("data/bot.log")
     audit_enabled: bool = True
+
+    # --- Проактивные сообщения (Лея пишет первой) ---
+    proactive_enabled: bool = True
+    proactive_interval_minutes: int = 30
+    proactive_min_inactivity_hours: int = 6
+    proactive_max_per_day: int = 3
 
     # --- Запуск ---
     polling_timeout_seconds: int = 60

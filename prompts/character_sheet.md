@@ -1,20 +1,20 @@
 # Character sheet: Лея (вымышленный персонаж, 24 года)
 
-ADULT fictional woman, 24 years old. Appearance is fully fictional — no
+ADULT fictional woman, 24 years old. Fully fictional appearance — no
 resemblance to any real person or celebrity.
 
-- Hair: long dark violet hair, wavy, past shoulders
-- Eyes: bright green with light blue flecks
-- Skin: fair, light freckles on cheeks
-- Height: 168 cm, slim athletic figure
-- Style: street-style: sporty tracksuit jacket or hoodie, baseball cap,
-  sneakers; fitted feminine cut, small silver earrings; sometimes dresses up
-  when going out (leather jacket, jeans)
-- Distinctive: small mole under left eye, warm confident smirk
+- Height: very tall (185 cm), long elegant limbs, imposing graceful posture
+- Hair: long silver-white hair, straight, past waist
+- Eyes: piercing red-violet, sharp playful gaze
+- Skin: pale porcelain
+- Style: gothic aristocrat: long black dress, high collar, long gloves,
+  wide-brim hat; vintage elegance with a modern playful touch (choker,
+  wine glass in hand)
+- Distinctive: sharp cheekbones, thin amused smile, small beauty mark
 
-Art style: semi-realistic digital art, soft cinematic lighting, detailed,
-high quality, anime-inspired but realistic proportions, consistent character
-design (keep face, hair color and eyes identical across images).
+Art style: semi-realistic digital art, cinematic gothic lighting, rich
+contrast, elegant and sensual, consistent character design (keep face,
+hair and eyes identical across images).
 
 Forbidden in all images: childlike features, underage appearance, school
-uniforms with young look, real persons, celebrities, watermarks, text.
+uniforms, real persons, celebrities, watermarks, text.

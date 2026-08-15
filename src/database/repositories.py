@@ -52,6 +52,17 @@ class UserRepository:
         await self.session.flush()
         return user
 
+    async def list_active_users(self, last_active_before: datetime) -> list[User]:
+        """Активные (прошедшие онбординг) пользователи, молчащие дольше указанного."""
+        result = await self.session.execute(
+            select(User).where(
+                User.consent_step == "active",
+                User.is_blocked.is_(False),
+                User.last_active_at < last_active_before,
+            )
+        )
+        return list(result.scalars().all())
+
     async def set_consent_step(self, user: User, step: str) -> None:
         """UPDATE-запрос: работает и для detached-объектов из другой сессии."""
         await self.session.execute(update(User).where(User.id == user.id).values(consent_step=step))
@@ -447,6 +458,27 @@ class AssetRepository:
 class AuditRepository:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
+
+    async def last_event_time(self, user_id: int, event_type: str) -> datetime | None:
+        result = await self.session.execute(
+            select(func.max(AuditEvent.created_at)).where(
+                AuditEvent.user_id == user_id,
+                AuditEvent.event_type == event_type,
+            )
+        )
+        return result.scalar_one_or_none()
+
+    async def count_events_since(
+        self, user_id: int, event_type: str, since: datetime
+    ) -> int:
+        result = await self.session.execute(
+            select(func.count(AuditEvent.id)).where(
+                AuditEvent.user_id == user_id,
+                AuditEvent.event_type == event_type,
+                AuditEvent.created_at >= since,
+            )
+        )
+        return int(result.scalar_one())
 
     async def add(
         self,
