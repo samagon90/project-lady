@@ -23,7 +23,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 VENV_PY = ROOT / ".venv" / "Scripts" / "python.exe"
-VERSION = "0.3.5"
+VERSION = "0.3.6"
 
 # Минимальный размер настоящего checkpoint (меньше — точно HTML/мусор)
 MIN_CHECKPOINT_BYTES = 50 * 1024 * 1024
@@ -367,7 +367,20 @@ def ensure_comfyui() -> None:
         print("Это 5-30 минут. Не закрывайте окно.")
         # Несколько источников: civitai может отдавать страницу вместо файла,
         # поэтому пробуем по очереди, пока не скачается настоящая модель.
-        sources = [
+        # API-ключ civitai из .env (CIVITAI_API_TOKEN) — скачивание надёжнее
+        civitai_token = ""
+        env_file = ROOT / ".env"
+        if env_file.exists():
+            for line in env_file.read_text(encoding="utf-8", errors="replace").splitlines():
+                if line.startswith("CIVITAI_API_TOKEN="):
+                    civitai_token = line.split("=", 1)[1].strip()
+        sources = []
+        if civitai_token:
+            sources.append(
+                ("civitai.com (с вашим API-ключом)",
+                 f"https://civitai.com/api/download/models/87927?token={civitai_token}")
+            )
+        sources += [
             ("civitai.com", "https://civitai.com/api/download/models/87927"),
             (
                 "зеркало HuggingFace (lllyasviel)",
