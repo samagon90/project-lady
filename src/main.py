@@ -68,6 +68,7 @@ async def _main(settings: Settings) -> None:
         host=settings.miniapp_host, port=settings.miniapp_port,
     )
     miniapp.app["chat"] = ctx.chat  # для /api/chat из мини-приложения
+    miniapp.app["image_service"] = ctx.image_service  # для генерации нарядов
     await miniapp.start()
 
     bot = Bot(settings.telegram_token)

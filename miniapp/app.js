@@ -107,6 +107,8 @@
       });
   }
 
+  el("generate-outfit").addEventListener("click", generateOutfit);
+
   // Кнопка «в белье / одеться»
   const clothesBtn = document.createElement("button");
   clothesBtn.id = "clothes-btn";
@@ -175,9 +177,15 @@
       images.forEach(function (img) {
         const card = document.createElement("div");
         card.className = "card";
+        const pic = document.createElement("img");
+        pic.className = "card-img";
+        pic.src = "/api/gallery/image/" + img.id;
+        pic.alt = "Lilith";
+        pic.loading = "lazy";
         const cap = document.createElement("div");
         cap.className = "card-date";
         cap.textContent = (img.created_at || "").replace("T", " ").slice(0, 16);
+        card.appendChild(pic);
         card.appendChild(cap);
         el("gallery").appendChild(card);
       });

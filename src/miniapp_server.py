@@ -90,6 +90,7 @@ class MiniAppServer:
         self.app.router.add_post("/api/settings", self._api_settings)
         self.app.router.add_get("/api/gallery", self._api_gallery)
         self.app.router.add_get("/api/memory", self._api_memory)
+        self.app.router.add_get("/api/gallery/image/{asset_id}", self._api_gallery_image)
         self.app.router.add_get("/api/avatar", self._api_avatar)
         self.app.router.add_post("/api/chat", self._api_chat)
 
@@ -282,6 +283,32 @@ class MiniAppServer:
             }
         )
 
+    async def _api_gallery_image(self, request: web.Request) -> web.StreamResponse:
+        """Отдаёт сгенерированное фото (только владельцу)."""
+        uid = self._user_id(request)
+        if uid is None:
+            return web.json_response({"error": "unauthorized"}, status=401)
+        try:
+            asset_id = int(request.match_info.get("asset_id", "0"))
+        except ValueError:
+            return web.json_response({"error": "bad_id"}, status=400)
+        from pathlib import Path
+
+        async with self.db.session() as session:
+            from src.database.repositories import AssetRepository
+
+            user = await UserRepository(session).get_by_telegram_id(uid)
+            if user is None:
+                return web.json_response({"error": "not_registered"}, status=404)
+            assets = await AssetRepository(session).list_recent_for_user(user.id, limit=100)
+        for a in assets:
+            if a.id == asset_id and a.asset_type == "image":
+                path = Path(a.file_path)
+                if path.exists():  # noqa: ASYNC240
+                    return web.FileResponse(path)
+                return web.Response(status=404, text="file not found")
+        return web.json_response({"error": "not_found"}, status=404)
+
     async def _api_memory(self, request: web.Request) -> web.Response:
         uid = self._user_id(request)
         if uid is None:
@@ -328,6 +355,24 @@ class MiniAppServer:
                 return web.json_response({"error": "not_registered"}, status=404)
         # Определяем эмоцию и «раскованность» (стадию) по тексту
         emotion, stage = _detect_emotion_and_stage(text)
+        # Если запрос про наряд/образ — генерируем картинку Лилит в этом наряде
+        outfit = str(payload.get("outfit", "") or "").strip()[:200]
+        if outfit:
+            image_service = request.app.get("image_service")
+            if image_service is not None:
+                try:
+                    submit = await image_service.submit(user, f"Лилит в наряде: {outfit}", None)
+                    if submit.ok:
+                        return web.json_response(
+                            {
+                                "reply": f"Ох, переодеваюсь в «{outfit}»… Рисую! 🎨",
+                                "emotion": "flirt",
+                                "stage": 2,
+                                "generating": True,
+                            }
+                        )
+                except Exception:  # noqa: BLE001
+                    pass
         try:
             result = await chat.handle_message(user, text, None)
         except Exception as exc:  # noqa: BLE001
