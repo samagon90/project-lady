@@ -103,6 +103,7 @@ class MiniAppServer:
             text=path.read_text(encoding="utf-8"),
             content_type="text/html",
             charset="utf-8",
+            headers={"bypass-tunnel-reminder": "true"},
         )
 
     async def _static_js(self, request: web.Request) -> web.Response:

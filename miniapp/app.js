@@ -15,7 +15,10 @@
 
   function api(path, options) {
     const opts = options || {};
-    const headers = Object.assign({ "X-Init-Data": INIT_DATA }, opts.headers || {});
+    const headers = Object.assign(
+      { "X-Init-Data": INIT_DATA, "bypass-tunnel-reminder": "true" },
+      opts.headers || {}
+    );
     if (opts.body) headers["Content-Type"] = "application/json";
     return fetch(path, { method: opts.method || "GET", headers, body: opts.body }).then(function (r) {
       if (r.status === 401) throw new Error("Не авторизовано");
