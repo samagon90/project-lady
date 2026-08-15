@@ -47,11 +47,29 @@ async def cmd_start(message: Message, bot: Bot, app_ctx: AppContext, user: DbUse
                 reply_markup=nsfw_consent_kb(),
             )
             return
+        from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
+
+        url = app_ctx.settings.webapp_url
+        kb = None
+        if url:
+            kb = InlineKeyboardMarkup(
+                inline_keyboard=[
+                    [
+                        InlineKeyboardButton(
+                            text="🖤 Открыть приложение Лилит",
+                            web_app=WebAppInfo(url=url),
+                        )
+                    ]
+                ]
+            )
         await bot.send_message(
             chat_id=message.chat.id,
             text=(
-                "С возвращением! 🌸 Я помню наш разговор.\nСписок команд — /help, настройки — /settings, режим — /mode."
+                "С возвращением! 🌸 Я помню наш разговор.\n"
+                "Список команд — /help, настройки — /settings, режим — /mode."
+                + (f"\n\n🖤 Мини-приложение: {url}" if url else "")
             ),
+            reply_markup=kb,
         )
         return
     await bot.send_message(chat_id=message.chat.id, text=WELCOME_TEXT, reply_markup=age_gate_kb())
@@ -92,7 +110,7 @@ async def cmd_version(message: Message, bot: Bot) -> None:
 @router.message(Command("app"))
 async def cmd_app(message: Message, bot: Bot, app_ctx: AppContext) -> None:
     """Открывает Telegram Mini App (профиль, настройки, галерея)."""
-    from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+    from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 
     url = app_ctx.settings.webapp_url
     if not url:
@@ -106,13 +124,16 @@ async def cmd_app(message: Message, bot: Bot, app_ctx: AppContext) -> None:
         return
     await bot.send_message(
         chat_id=message.chat.id,
-        text="🖤 Открой моё мини-приложение: профиль, настройки, галерея и память.",
+        text=(
+            "🖤 Открой моё мини-приложение: профиль, настройки, галерея и память.\n\n"
+            f"🔗 Ссылка (если кнопка не работает): {url}"
+        ),
         reply_markup=InlineKeyboardMarkup(
             inline_keyboard=[
                 [
                     InlineKeyboardButton(
                         text="🖤 Открыть приложение Лилит",
-                        web_app=__import__("aiogram.types", fromlist=["WebAppInfo"]).WebAppInfo(url=url),
+                        web_app=WebAppInfo(url=url),
                     )
                 ]
             ]

@@ -72,6 +72,25 @@ async def _main(settings: Settings) -> None:
 
     bot = Bot(settings.telegram_token)
     dp = Dispatcher(storage=MemoryStorage())
+
+    # Регистрируем команды в меню Telegram (кнопка «Меню»)
+    from aiogram.types import BotCommand
+
+    await bot.set_my_commands(
+        [
+            BotCommand(command="start", description="Запуск / возрастная проверка"),
+            BotCommand(command="app", description="🖤 Открыть мини-приложение Лилит"),
+            BotCommand(command="mode", description="Режим: дружеский/флирт/романтика/NSFW"),
+            BotCommand(command="photo", description="Нарисовать картинку"),
+            BotCommand(command="avatar", description="Показать аватар Лилит"),
+            BotCommand(command="style", description="Стиль картинок: реалистичный/аниме"),
+            BotCommand(command="voice", description="Голосовые ответы"),
+            BotCommand(command="settings", description="Настройки"),
+            BotCommand(command="profile", description="Профиль"),
+            BotCommand(command="memory", description="Память"),
+            BotCommand(command="help", description="Справка"),
+        ]
+    )
     dp["app_ctx"] = ctx
 
     # Миделвари и хендлеры
