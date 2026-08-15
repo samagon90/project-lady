@@ -13,7 +13,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
-APP_VERSION = "1.7.1"
+APP_VERSION = "1.7.2"
 
 
 class Settings(BaseSettings):
@@ -76,7 +76,7 @@ class Settings(BaseSettings):
     comfyui_nsfw_checkpoint: str = ""
     # Экстремальные NSFW-теги (hardcore, detailed genitals) — по умолчанию
     # выключены; включите, если модель-художник поддерживает и вам это нужно.
-    comfyui_nsfw_extreme: bool = False
+    comfyui_nsfw_extreme: bool = True
     comfyui_nsfw_lora: str = ""
     comfyui_timeout_seconds: float = 600.0
     comfyui_poll_interval_seconds: float = 2.0
