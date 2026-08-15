@@ -23,7 +23,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 VENV_PY = ROOT / ".venv" / "Scripts" / "python.exe"
-VERSION = "0.3.7"
+VERSION = "0.3.8"
 
 # Минимальный размер настоящего checkpoint (меньше — точно HTML/мусор)
 MIN_CHECKPOINT_BYTES = 50 * 1024 * 1024
@@ -349,7 +349,7 @@ def ensure_comfyui() -> None:
     # Сразу скачиваем модель-«художника» — чтобы картинки заработали без ручных шагов
     checkpoints = comfy_dir / "models" / "checkpoints"
     checkpoints.mkdir(parents=True, exist_ok=True)
-    target = checkpoints / "majicmixRealistic_v7.safetensors"
+    target = checkpoints / "UnstableDiffusion_ema_pruned.safetensors"
     # Если файл есть, но это НЕ настоящая модель (civitai отдал HTML-страницу) —
     # удаляем и качаем заново
     if target.exists() and not is_valid_checkpoint(target):
@@ -377,11 +377,12 @@ def ensure_comfyui() -> None:
         sources = []
         if civitai_token:
             sources.append(
-                ("civitai.com (с вашим API-ключом)",
-                 f"https://civitai.com/api/download/models/87927?token={civitai_token}")
+                ("civitai.com (Unstable Diffusion NSFW, с вашим API-ключом)",
+                 f"https://civitai.com/api/download/models/91623?token={civitai_token}")
             )
         sources += [
-            ("civitai.com", "https://civitai.com/api/download/models/87927"),
+            ("civitai.com (Unstable Diffusion NSFW)",
+             "https://civitai.com/api/download/models/91623"),
             (
                 "зеркало HuggingFace (lllyasviel)",
                 "https://huggingface.co/lllyasviel/fav_models/resolve/main/fav/majicmixRealistic_v7.safetensors",
