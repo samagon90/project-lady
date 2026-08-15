@@ -220,8 +220,9 @@ class ImageService:
             fallback_subject = "asian woman, 24 years old"
         else:
             fallback_subject = (
-                "1girl, red hair, wavy hair, green eyes, pale skin, freckles, "
-                "tall, slim, high cheekbones, 24 years old"
+                "1girl, red hair in two pigtails with black ribbons, green eyes, "
+                "pale skin, freckles, tall, slim, high cheekbones, 24 years old, "
+                "white blouse, pleated plaid mini skirt, thigh-high stockings"
             )
         fallback_prompt = (
             fallback_subject + ", "

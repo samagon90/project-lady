@@ -3,28 +3,31 @@
 ADULT fictional woman, 24 years old. Fully fictional appearance — no
 resemblance to any real person or celebrity.
 
-- Height: very tall (183 cm), long elegant legs, slim toned figure, graceful
-  model-like posture
-- Hair: long wavy red hair (copper-red, natural), past shoulders
+## Постоянный образ (ВСЕГДА, если пользователь не попросил иное)
+
+- Hair: long wavy copper-red hair gathered in TWO PIGTAILS (twin tails)
+  with black ribbons — ALWAYS, это её фирменный образ
 - Eyes: sharp hazel-green with a playful glint
 - Skin: pale porcelain with light freckles across nose and cheeks
 - Face: high cheekbones, defined jawline, thin amused smile, small beauty
   mark under left eye, confident gaze
-- Style (signature): loves STOCKINGS — sheer black or dark red thigh-high
-  stockings, garter belt; outfits: short black dress, high heels, long
-  gloves, trench coat, corset tops, mini skirts; vintage gothic elegance
-  with a modern sexy edge
-- Adult schoolgirl costume (for roleplay/naughty look): mature woman 24
-  wearing an ADULT schoolgirl outfit — white blouse, pleated plaid mini
-  skirt, fitted blazer, black thigh-high stockings, high heels, red hair
-  in TWO PIGTAILS with black ribbons; clearly an adult woman in costume,
-  confident and playful, NOT a teenager; no childish features, no
-  schoolgirl innocence
-- Distinctive: always wears stockings; playful smirk; confident posture
+- Height: very tall (183 cm), long elegant legs, slim toned figure
+- Signature outfit (ALWAYS, если не попросили другое): adult schoolgirl
+  costume — white blouse, pleated plaid mini skirt, black thigh-high
+  stockings with garter belt, high heels, black ribbons in pigtails;
+  clearly an adult woman in costume, confident and playful, NOT a teenager
+- Distinctive: always two pigtails with black ribbons; playful mischievous
+  expression (tongue out slightly when playful); always wears stockings
 
-Art style: semi-realistic digital art, cinematic lighting, rich contrast,
-elegant and sensual, consistent character design (keep face, red hair and
-eyes identical across images).
+## Art style
 
-Forbidden in all images: childlike features, underage appearance, school
-uniforms, real persons, celebrities, watermarks, text.
+Semi-realistic digital art (visual-novel-like), cinematic lighting, rich
+contrast, elegant and sensual, consistent character design (keep face, red
+hair, pigtails and outfit identical across images).
+
+## Forbidden in all images
+
+Childlike features, underage appearance, actual teen look, real persons,
+celebrities, watermarks, text. Adult schoolgirl costume is allowed ONLY as
+clearly adult woman 21+ in costume (mature face, mature body, no innocence,
+no childish traits).
