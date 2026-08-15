@@ -67,13 +67,20 @@ class PromptLibrary:
     # ------------------------------------------------------------------ сборка
 
     def system_prompt(self, user: User, ctx) -> str:
-        """Системный промпт: персонаж + режим + правила."""
+        """Системный промпт: персонаж + режим + правила + манера речи."""
         mode = min(max(ctx.mode, 0), 3)
+        speech = ""
+        if getattr(ctx, "speech_style", None):
+            speech = (
+                "\n=== ЖЕЛАЕМАЯ МАНЕРА РЕЧИ (выбрана собеседником — соблюдай строго) ===\n"
+                + ctx.speech_style
+            )
         return self.system_template.format(
             persona=self.persona,
             mode=_MODE_INSTRUCTIONS[mode],
             safety=self.safety_rules,
             mode_label=MODE_LABELS[mode],
+            speech_style=speech,
         )
 
 

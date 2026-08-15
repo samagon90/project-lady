@@ -51,6 +51,7 @@ class MemoryContext:
     mode: int = 0
     voice_enabled: bool = False
     name: str | None = None
+    speech_style: str | None = None
 
 
 class MemoryService:
@@ -112,6 +113,7 @@ class MemoryService:
             mode=prefs.mode,
             voice_enabled=prefs.voice_enabled,
             name=prefs.name,
+            speech_style=prefs.speech_style,
         )
 
     async def _semantic_search(self, user: User, query: str, memories: list) -> list:

@@ -23,7 +23,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 VENV_PY = ROOT / ".venv" / "Scripts" / "python.exe"
-VERSION = "0.4.5"
+VERSION = "0.5.0"
 
 # Минимальный размер настоящего checkpoint (меньше — точно HTML/мусор)
 MIN_CHECKPOINT_BYTES = 50 * 1024 * 1024

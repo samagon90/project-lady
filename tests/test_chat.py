@@ -177,3 +177,56 @@ async def test_auto_nsfw_reply_with_consent(ctx: AppContext, dp, bot, fake_llm) 
     system = last_call[0]["content"]
     assert "NSFW-режим" in system or "nsfw" in system.lower()
     assert "сексуальная игривая госпожа" in system
+
+
+async def test_dress_intent_changes_outfit(ctx: AppContext, dp, bot) -> None:
+    """«переоденься в костюм горничной» меняет наряд и генерирует фото."""
+    from src.database.repositories import PreferencesRepository, UserRepository
+    from tests.conftest import make_update_message, onboard, tg_user
+
+    await onboard(ctx, 9994, nsfw=True)
+    user_a = tg_user(9994, "DressUser")
+    await dp.feed_update(bot, make_update_message(9994, user_a, "переоденься в костюм горничной"))
+    assert "Переодеваюсь" in " ".join(bot.texts())
+    async with ctx.db.session() as session:
+        u = await UserRepository(session).get_by_telegram_id(9994)
+        prefs = await PreferencesRepository(session).get_or_create(u)
+        assert prefs.outfit == "костюм горничной"
+    # задача на фото создана
+    from src.database.repositories import JobRepository
+
+    async with ctx.db.session() as session:
+        jobs = await JobRepository(session).queued_jobs()
+        assert len(jobs) == 1
+        assert "горничной" in jobs[0].request_text
+
+
+async def test_speech_intent_changes_style(ctx: AppContext, dp, bot) -> None:
+    """«говори нежнее» меняет манеру речи."""
+    from src.database.repositories import PreferencesRepository, UserRepository
+    from tests.conftest import make_update_message, onboard, tg_user
+
+    await onboard(ctx, 9995, nsfw=True)
+    user_a = tg_user(9995, "SpeechUser")
+    await dp.feed_update(bot, make_update_message(9995, user_a, "говори нежнее и медленнее"))
+    assert "говорю" in " ".join(bot.texts())
+    async with ctx.db.session() as session:
+        u = await UserRepository(session).get_by_telegram_id(9995)
+        prefs = await PreferencesRepository(session).get_or_create(u)
+        assert prefs.speech_style == "нежнее и медленнее"
+
+
+async def test_speech_style_in_system_prompt(ctx: AppContext, dp, bot, fake_llm) -> None:
+    """Манера речи попадает в системный промпт."""
+    from src.database.repositories import PreferencesRepository, UserRepository
+    from tests.conftest import make_update_message, onboard, tg_user
+
+    await onboard(ctx, 9996, nsfw=True)
+    async with ctx.db.session() as session:
+        u = await UserRepository(session).get_by_telegram_id(9996)
+        await PreferencesRepository(session).update_fields(u, speech_style="грубо и отрывисто")
+    user_a = tg_user(9996, "StyleUser")
+    await dp.feed_update(bot, make_update_message(9996, user_a, "привет"))
+    assert fake_llm.calls
+    system = fake_llm.calls[-1][0]["content"]
+    assert "грубо и отрывисто" in system

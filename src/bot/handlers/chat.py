@@ -79,6 +79,48 @@ async def on_text(message: Message, bot: Bot, app_ctx: AppContext, user: DbUser 
         )
         return
 
+    # Пользователь просит Лилит переодеться — меняем наряд и сразу рисуем
+    _DRESS_INTENT = re.compile(
+        r"^(переоденься|переодень|надень|наден|смени\s+образ|смени\s+наряд|оденься|"
+        r"нарядись|переодень\s+меня|раздевайся|сними)\b",
+        re.IGNORECASE,
+    )
+    dress_match = _DRESS_INTENT.search(text)
+    if dress_match:
+        outfit_desc = _DRESS_INTENT.sub("", text).strip(" ,.!?:;-")
+        outfit_desc = re.sub(r"^(в|во|в\\s+)?", "", outfit_desc).strip()
+        outfit_desc = re.sub(r"\\s+", " ", outfit_desc)
+        if outfit_desc and len(outfit_desc) < 200:
+            async with app_ctx.db.session() as session:
+                await PreferencesRepository(session).update_fields(user, outfit=outfit_desc)
+            await bot.send_message(
+                chat_id=message.chat.id,
+                text=f"Ох, с удовольствием… Переодеваюсь: {outfit_desc} 😏",
+            )
+            from src.bot.handlers.commands import _submit_photo
+
+            await _submit_photo(
+                message, bot, app_ctx, user, f"Лилит {outfit_desc}, её фирменные чулки"
+            )
+            return
+
+    # Пользователь просит Лилит сменить манеру речи
+    _SPEECH_INTENT = re.compile(
+        r"^(говори|разговаривай|общайся|будь|стань)\b",
+        re.IGNORECASE,
+    )
+    speech_match = _SPEECH_INTENT.search(text)
+    if speech_match:
+        style_desc = _SPEECH_INTENT.sub("", text).strip(" ,.!?:;-")
+        if style_desc and len(style_desc) < 150:
+            async with app_ctx.db.session() as session:
+                await PreferencesRepository(session).update_fields(user, speech_style=style_desc)
+            await bot.send_message(
+                chat_id=message.chat.id,
+                text=f"Как скажешь, мой дорогой. Теперь я говорю: {style_desc} 💋",
+            )
+            return
+
     # Пользователь просит картинку без команды /photo — запускаем генерацию.
     # Условие: (а) явные просьбы (нарисуй/сгенерируй/пришли/кинь/покажи/дай/хочу...)
     # или (б) в фразе есть слово про фото/картинку И слово про взрослый контент

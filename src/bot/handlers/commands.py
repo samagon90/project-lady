@@ -5,7 +5,7 @@ from __future__ import annotations
 from aiogram import Bot, F, Router
 from aiogram.filters import Command, StateFilter
 from aiogram.fsm.context import FSMContext
-from aiogram.types import CallbackQuery, Message
+from aiogram.types import CallbackQuery, FSInputFile, Message
 
 from src.bot.di import AppContext
 from src.bot.keyboards import (
@@ -267,6 +267,69 @@ def _nsfw_prompt_kb():
     return InlineKeyboardMarkup(
         inline_keyboard=[[InlineKeyboardButton(text="🔞 Показать условия NSFW", callback_data="consent:nsfw:show")]]
     )
+
+
+# ===================================================================== /style
+
+@router.message(Command("style"))
+async def cmd_style(message: Message, bot: Bot, app_ctx: AppContext, user: DbUser | None) -> None:
+    if not _require_user(user):
+        await _not_registered(message, bot)
+        return
+    assert user is not None
+    from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+
+    async with app_ctx.db.session() as session:
+        prefs = await PreferencesRepository(session).get_or_create(user)
+    await bot.send_message(
+        chat_id=message.chat.id,
+        text=(
+            "🎨 Стиль изображений и аватара Лилит:\n"
+            f"Сейчас: {'📸 реалистичный' if prefs.image_style == 'realistic' else '🖌 рисованный (аниме)'}\n\n"
+            "Переключай на лету:"
+        ),
+        reply_markup=InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(text="📸 Реалистичный", callback_data="style:realistic"),
+                    InlineKeyboardButton(text="🖌 Рисованный (аниме)", callback_data="style:anime"),
+                ]
+            ]
+        ),
+    )
+
+
+@router.callback_query(F.data.startswith("style:"))
+async def cb_style(cb: CallbackQuery, bot: Bot, app_ctx: AppContext, user: DbUser | None) -> None:
+    if not _require_user(user):
+        await bot.answer_callback_query(callback_query_id=cb.id, text="Сначала /start", show_alert=True)
+        return
+    assert user is not None
+    style = (cb.data or "").removeprefix("style:")
+    if style not in ("realistic", "anime"):
+        await bot.answer_callback_query(callback_query_id=cb.id, text="Неизвестный стиль")
+        return
+    async with app_ctx.db.session() as session:
+        await PreferencesRepository(session).update_fields(user, image_style=style)
+    label = "реалистичный" if style == "realistic" else "аниме"
+    await bot.answer_callback_query(callback_query_id=cb.id, text=f"Стиль: {label}")
+    # Показываем аватар в новом стиле
+    avatar = (
+        app_ctx.settings.resolve_path(__import__("pathlib").Path("assets/lilith_avatar_anime.png"))
+        if style == "anime"
+        else app_ctx.settings.resolve_path(__import__("pathlib").Path("assets/lilith_avatar.png"))
+    )
+    if avatar.exists():
+        await bot.send_photo(
+            chat_id=cb.message.chat.id if cb.message else user.telegram_user_id,
+            photo=FSInputFile(str(avatar)),
+            caption=(
+                "Мой аватар: 🖌 рисованный. Теперь и все картинки будут в этом стиле!"
+                if style == "anime"
+                else "Мой аватар: 📸 реалистичный. Теперь и все картинки будут в этом стиле!"
+            ),
+        )
+    await app_ctx.audit.log("style_changed", user=user, meta={"style": style})
 
 
 # ===================================================================== /voice

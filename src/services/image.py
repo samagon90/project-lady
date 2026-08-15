@@ -22,6 +22,7 @@ from src.database.models import User
 from src.database.repositories import (
     AssetRepository,
     JobRepository,
+    PreferencesRepository,
 )
 from src.prompts import PromptLibrary
 from src.providers.base import (
@@ -109,8 +110,12 @@ class ImageService:
                 refusal_text=self.moderation.refusal_text(judge.reason_code),
             )
 
-        # 3. Структурирование запроса в ImagePrompt
-        image_prompt = await self._build_image_prompt(text)
+        # 3. Структурирование запроса в ImagePrompt (с учётом наряда и стиля)
+        async with self.db.session() as session:
+            prefs = await PreferencesRepository(session).get_or_create(user)
+            outfit = prefs.outfit
+            image_style = prefs.image_style
+        image_prompt = await self._build_image_prompt(text, outfit=outfit, image_style=image_style)
 
         # 4. Эротический запрос требует отдельного NSFW-согласия
         if image_prompt.nsfw and not await self.consent.has_nsfw_consent(user):
@@ -175,15 +180,26 @@ class ImageService:
         await self.audit.log("image_job_queued", user=user, meta={"job_id": job_id})
         return SubmitResult(ok=True, job_id=job_id)
 
-    async def _build_image_prompt(self, text: str) -> ImageRequest:
+    async def _build_image_prompt(
+        self, text: str, *, outfit: str | None = None, image_style: str = "realistic"
+    ) -> ImageRequest:
         """LLM преобразует запрос в структурированный ImagePrompt."""
+        request_text = text
+        if outfit:
+            request_text = f"{text} (сейчас Лилит одета: {outfit})"
+        style_hint = (
+            "photorealistic, realistic photo, 8k"
+            if image_style == "realistic"
+            else "anime style, anime art, 2d illustration, cel shading, vibrant"
+        )
         prompt = self.prompts.image_prompt_prompt.format(
-            request=truncate(text, 1500),
+            request=truncate(request_text, 1500),
             character_sheet=self.prompts.character_sheet,
             default_width=self.settings.default_image_size[0],
             default_height=self.settings.default_image_size[1],
             default_steps=self.settings.image_steps,
             default_cfg=self.settings.image_cfg,
+            style_hint=style_hint,
         )
         try:
             raw = await self.llm.chat([{"role": "user", "content": prompt}], temperature=0.2, max_tokens=600)
@@ -200,8 +216,9 @@ class ImageService:
         fallback_prompt = (
             "beautiful adult woman, 24 years old, "
             + _translate_request_to_tags(text)
+            + (f", wearing {outfit}" if outfit else "")
             + ", nude, topless, explicit, nsfw, uncensored, full body, "
-            "sensual pose, photorealistic, detailed face, soft light, 8k"
+            "sensual pose, " + style_hint
         )
         return ImageRequest(
             prompt=str(data.get("prompt") or fallback_prompt),

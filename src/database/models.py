@@ -75,6 +75,13 @@ class UserPreferences(Base):
     voice_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
     voice_speed: Mapped[float] = mapped_column(Float, default=1.0)
 
+    # Текущий наряд Лилит для этого пользователя (например, «чёрное платье, чулки»)
+    outfit: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Стиль генерации изображений/аватара: realistic | anime
+    image_style: Mapped[str] = mapped_column(String(16), default="realistic")
+    # Желаемая манера речи (например, «нежно и медленно»); пусто — по умолчанию
+    speech_style: Mapped[str | None] = mapped_column(String(200), nullable=True)
+
     interests: Mapped[str | None] = mapped_column(Text, nullable=True)
     boundaries: Mapped[str | None] = mapped_column(Text, nullable=True)
 
