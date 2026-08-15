@@ -90,6 +90,8 @@ class MiniAppServer:
         self.app.router.add_post("/api/settings", self._api_settings)
         self.app.router.add_get("/api/gallery", self._api_gallery)
         self.app.router.add_get("/api/memory", self._api_memory)
+        self.app.router.add_get("/api/avatar", self._api_avatar)
+        self.app.router.add_post("/api/chat", self._api_chat)
 
     # ------------------------------------------------------------- static
 
@@ -110,6 +112,32 @@ class MiniAppServer:
             text=(MINIAPP_DIR / "style.css").read_text(encoding="utf-8"),
             content_type="text/css; charset=utf-8",
         )
+
+    async def _api_avatar(self, request: web.Request) -> web.StreamResponse:
+        """Отдаёт аватар Лилит по стилю и эмоции (для визуальной новеллы)."""
+        style = request.query.get("style", "realistic")
+        emotion = request.query.get("emotion", "neutral")
+        allowed = {"neutral", "flirt", "passion", "playful", "tender", "serious"}
+        if emotion not in allowed:
+            emotion = "neutral"
+        from pathlib import Path
+
+        if style == "anime":
+            base = Path("assets/emotions") / f"lilith_{emotion}_anime.png"
+            if not base.exists():
+                base = Path("assets/lilith_avatar_anime.png")
+        else:
+            base = Path("assets/emotions") / f"lilith_{emotion}.png"
+            if not base.exists():
+                base = Path("assets/lilith_avatar.png")
+        path = self._resolve_asset(base)
+        if not path.exists():
+            return web.Response(status=404, text="avatar not found")
+        return web.FileResponse(path)
+
+    def _resolve_asset(self, rel: Path) -> Path:
+        root = Path(__file__).resolve().parents[1]
+        return root / rel
 
     # ------------------------------------------------------------- auth
 
@@ -241,6 +269,34 @@ class MiniAppServer:
                 ]
             }
         )
+
+    async def _api_chat(self, request: web.Request) -> web.Response:
+        """Диалог с Лилит из мини-приложения (прокси в ChatService)."""
+        uid = self._user_id(request)
+        if uid is None:
+            return web.json_response({"error": "unauthorized"}, status=401)
+        try:
+            payload = await request.json()
+        except Exception:  # noqa: BLE001
+            return web.json_response({"error": "bad_json"}, status=400)
+        text = str(payload.get("text", ""))[:2000].strip()
+        if not text:
+            return web.json_response({"error": "empty"}, status=400)
+        # Проксируем через чат-сервис (он доступен через app['chat'])
+        chat = request.app.get("chat")
+        if chat is None:
+            return web.json_response({"error": "chat_unavailable"}, status=503)
+        async with self.db.session() as session:
+            from src.database.repositories import UserRepository
+
+            user = await UserRepository(session).get_by_telegram_id(uid)
+            if user is None:
+                return web.json_response({"error": "not_registered"}, status=404)
+        try:
+            result = await chat.handle_message(user, text, None)
+        except Exception as exc:  # noqa: BLE001
+            return web.json_response({"error": "llm_unavailable", "detail": str(exc)}, status=503)
+        return web.json_response({"reply": result.text})
 
     # ------------------------------------------------------------- lifecycle
 

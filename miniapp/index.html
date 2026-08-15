@@ -3,34 +3,34 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<title>Лилит</title>
+<title>Лилит — визуальная новелла</title>
 <link rel="stylesheet" href="/style.css">
 </head>
 <body>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<header>
-  <h1>🖤 Лилит</h1>
-  <span id="mode-label" class="badge"></span>
-</header>
 
-<nav>
-  <button class="tab active" data-tab="profile">Профиль</button>
-  <button class="tab" data-tab="settings">Настройки</button>
-  <button class="tab" data-tab="gallery">Галерея</button>
-  <button class="tab" data-tab="memory">Память</button>
-</nav>
+<!-- Визуальная новелла: аватар всегда на экране, меняется по диалогу -->
+<div id="novel">
+  <div id="avatar-wrap">
+    <img id="avatar" src="/api/avatar?style=realistic&emotion=neutral" alt="Лилит">
+    <div id="emotion-tag"></div>
+  </div>
 
-<main>
-  <section id="tab-profile" class="panel active">
-    <h2>👤 Профиль</h2>
-    <div class="row"><span>Имя</span><b id="p-name">—</b></div>
-    <div class="row"><span>Режим</span><b id="p-mode">—</b></div>
-    <div class="row"><span>Голос</span><b id="p-voice">—</b></div>
-    <div class="row"><span>Стиль картинок</span><b id="p-style">—</b></div>
-    <div class="row"><span>Наряд</span><b id="p-outfit">—</b></div>
-    <div class="row"><span>Манера речи</span><b id="p-speech">—</b></div>
-    <div class="row"><span>NSFW-согласие</span><b id="p-nsfw">—</b></div>
-  </section>
+  <div id="dialogue-box">
+    <div id="speaker">🖤 Лилит</div>
+    <div id="dialogue-text">Загрузка…</div>
+    <div id="input-row">
+      <input id="chat-input" type="text" placeholder="Напиши Лилит…" autocomplete="off">
+      <button id="send-btn">➤</button>
+    </div>
+  </div>
+
+  <nav id="mini-nav">
+    <button class="tab active" data-tab="chat">💬 Чат</button>
+    <button class="tab" data-tab="settings">⚙️</button>
+    <button class="tab" data-tab="gallery">🖼</button>
+    <button class="tab" data-tab="memory">🧠</button>
+  </nav>
 
   <section id="tab-settings" class="panel">
     <h2>⚙️ Настройки</h2>
@@ -45,22 +45,16 @@
         <option value="3">🔞 NSFW</option>
       </select>
     </label>
-    <label>Стиль картинок
+    <label>Стиль
       <select id="s-style">
         <option value="realistic">📸 Реалистичный</option>
-        <option value="anime">🖌 Рисованный (аниме)</option>
+        <option value="anime">🖌 Аниме</option>
       </select>
     </label>
-    <label>Голосовые ответы
-      <select id="s-voice">
-        <option value="true">🎙 Включены</option>
-        <option value="false">🔇 Выключены</option>
-      </select>
-    </label>
-    <label>Наряд Лилит (например: «чёрное платье, чулки»)
+    <label>Наряд
       <input id="s-outfit" placeholder="костюм горничной, чулки">
     </label>
-    <label>Манера речи (например: «нежно и шёпотом»)
+    <label>Манера речи
       <input id="s-speech" placeholder="страстно и дерзко">
     </label>
     <button id="save" class="primary">💾 Сохранить</button>
@@ -76,7 +70,7 @@
     <h2>🧠 Память</h2>
     <div id="memory"><p class="hint">Загрузка…</p></div>
   </section>
-</main>
+</div>
 
 <script src="/app.js"></script>
 </body>

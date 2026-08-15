@@ -1,4 +1,4 @@
-/* Лилит Mini App — логика */
+/* Лилит — визуальная новелла в Telegram Mini App */
 (function () {
   const tg = window.Telegram?.WebApp;
   if (tg) {
@@ -9,13 +9,13 @@
   }
 
   const INIT_DATA = tg ? tg.initData : "";
+  const MODES = { 0: "🤝 Дружеский", 1: "😉 Флирт", 2: "💞 Романтический", 3: "🔞 NSFW" };
+
+  function el(id) { return document.getElementById(id); }
 
   function api(path, options) {
     const opts = options || {};
-    const headers = Object.assign(
-      { "X-Init-Data": INIT_DATA },
-      opts.headers || {}
-    );
+    const headers = Object.assign({ "X-Init-Data": INIT_DATA }, opts.headers || {});
     if (opts.body) headers["Content-Type"] = "application/json";
     return fetch(path, { method: opts.method || "GET", headers, body: opts.body }).then(function (r) {
       if (r.status === 401) throw new Error("Не авторизовано");
@@ -23,40 +23,81 @@
     });
   }
 
-  function el(id) { return document.getElementById(id); }
+  // ---- Определение эмоции по тексту (для аватара)
+  function detectEmotion(text) {
+    const t = text.toLowerCase();
+    if (/(люблю|скучал|милый|нежно|обним|родн)/.test(t)) return "tender";
+    if (/(хочу|страст|поцелуй|разде|гол|секс|эрот|ночь|жела)/.test(t)) return "passion";
+    if (/(флирт|кокет|соблазн|красив|нрав)/.test(t)) return "flirt";
+    if (/(шут|смешно|ха-ха|прикол|весел)/.test(t)) return "playful";
+    if (/(злишь|обид|серьез|серьёз|важн)/.test(t)) return "serious";
+    return "neutral";
+  }
 
-  const MODES = { 0: "🤝 Дружеский", 1: "😉 Флирт", 2: "💞 Романтический", 3: "🔞 NSFW" };
+  let currentStyle = "realistic";
+  let currentEmotion = "neutral";
 
-  // ---- вкладки
+  function setAvatar(emotion) {
+    currentEmotion = emotion || "neutral";
+    el("avatar").src = "/api/avatar?style=" + currentStyle + "&emotion=" + currentEmotion;
+    const labels = {
+      neutral: "😌", flirt: "😏", passion: "🔥", playful: "😜", tender: "💗", serious: "😐"
+    };
+    el("emotion-tag").textContent = labels[currentEmotion] || "😌";
+  }
+
+  // ---- Чат (диалог с Лилит через бота)
+  let chatHistory = [];
+  function addMessage(role, text) {
+    chatHistory.push({ role: role, text: text });
+    const d = el("dialogue-text");
+    d.textContent = (role === "user" ? "Ты: " : "") + text;
+    // эмоция по ответу Лилит
+    if (role === "assistant") setAvatar(detectEmotion(text));
+    d.scrollIntoView({ block: "nearest" });
+  }
+
+  function sendChat() {
+    const input = el("chat-input");
+    const text = input.value.trim();
+    if (!text) return;
+    input.value = "";
+    addMessage("user", text);
+    // Лилит «думает»
+    el("dialogue-text").textContent = "…";
+    api("/api/chat", { method: "POST", body: JSON.stringify({ text: text }) })
+      .then(function (res) {
+        if (res.reply) addMessage("assistant", res.reply);
+        else addMessage("assistant", "…");
+      })
+      .catch(function () {
+        addMessage("assistant", "Связь прервалась… Попробуй ещё раз.");
+      });
+  }
+
+  el("send-btn").addEventListener("click", sendChat);
+  el("chat-input").addEventListener("keydown", function (e) { if (e.key === "Enter") sendChat(); });
+
+  // ---- Вкладки
   document.querySelectorAll(".tab").forEach(function (btn) {
     btn.addEventListener("click", function () {
       document.querySelectorAll(".tab").forEach(function (b) { b.classList.remove("active"); });
       document.querySelectorAll(".panel").forEach(function (p) { p.classList.remove("active"); });
       btn.classList.add("active");
-      el("tab-" + btn.dataset.tab).classList.add("active");
-      if (btn.dataset.tab === "gallery") loadGallery();
-      if (btn.dataset.tab === "memory") loadMemory();
+      const tab = btn.dataset.tab;
+      if (tab === "chat") { el("dialogue-box").style.display = "block"; return; }
+      el("dialogue-box").style.display = "none";
+      el("tab-" + tab).classList.add("active");
+      if (tab === "gallery") loadGallery();
+      if (tab === "memory") loadMemory();
     });
   });
 
-  // ---- профиль
-  function fillProfile(d) {
-    el("p-name").textContent = d.name || "—";
-    el("p-mode").textContent = MODES[d.mode] || d.mode;
-    el("p-voice").textContent = d.voice_enabled ? "🎙 вкл" : "🔇 выкл";
-    el("p-style").textContent = d.image_style === "anime" ? "🖌 аниме" : "📸 реалистичный";
-    el("p-outfit").textContent = d.outfit || "—";
-    el("p-speech").textContent = d.speech_style || "—";
-    el("p-nsfw").textContent = d.consent_nsfw ? "✅ есть" : "—";
-    el("mode-label").textContent = MODES[d.mode] || "";
-  }
-
-  // ---- настройки
+  // ---- Настройки
   function fillSettings(d) {
     el("s-name").value = d.name || "";
     el("s-mode").value = String(d.mode);
     el("s-style").value = d.image_style || "realistic";
-    el("s-voice").value = d.voice_enabled ? "true" : "false";
     el("s-outfit").value = d.outfit || "";
     el("s-speech").value = d.speech_style || "";
   }
@@ -66,7 +107,6 @@
       name: el("s-name").value.trim(),
       mode: parseInt(el("s-mode").value, 10),
       image_style: el("s-style").value,
-      voice_enabled: el("s-voice").value === "true",
       outfit: el("s-outfit").value.trim(),
       speech_style: el("s-speech").value.trim(),
     });
@@ -77,54 +117,43 @@
         el("save-msg").textContent = res.ok ? "✅ Сохранено!" : "❌ Ошибка";
         if (res.ok) return api("/api/me");
       })
-      .then(function (me) { if (me) { fillProfile(me); fillSettings(me); } })
+      .then(function (me) { if (me) { fillSettings(me); currentStyle = me.image_style || "realistic"; setAvatar(); } })
       .catch(function (e) { el("save-msg").textContent = "❌ " + e.message; })
       .finally(function () { el("save").disabled = false; });
   });
 
-  // ---- галерея
+  // ---- Галерея и память (как раньше)
   function loadGallery() {
     el("gallery").innerHTML = '<p class="hint">Загрузка…</p>';
-    api("/api/gallery")
-      .then(function (res) {
-        const images = (res.images || []).filter(function (i) { return i.file_path; });
-        if (!images.length) {
-          el("gallery").innerHTML = '<p class="hint">Пока нет сгенерированных фото. Отправь боту «нарисуй…»</p>';
-          return;
-        }
-        el("gallery").innerHTML = "";
-        images.forEach(function (img) {
-          const card = document.createElement("div");
-          card.className = "card";
-          const caption = document.createElement("div");
-          caption.className = "card-date";
-          caption.textContent = (img.created_at || "").replace("T", " ").slice(0, 16);
-          card.appendChild(caption);
-          el("gallery").appendChild(card);
-        });
-      })
-      .catch(function () { el("gallery").innerHTML = '<p class="hint">Не удалось загрузить</p>'; });
+    api("/api/gallery").then(function (res) {
+      const images = (res.images || []).filter(function (i) { return i.file_path; });
+      if (!images.length) { el("gallery").innerHTML = '<p class="hint">Пока пусто. Напиши «нарисуй…» боту.</p>'; return; }
+      el("gallery").innerHTML = "";
+      images.forEach(function (img) {
+        const card = document.createElement("div");
+        card.className = "card";
+        const cap = document.createElement("div");
+        cap.className = "card-date";
+        cap.textContent = (img.created_at || "").replace("T", " ").slice(0, 16);
+        card.appendChild(cap);
+        el("gallery").appendChild(card);
+      });
+    }).catch(function () { el("gallery").innerHTML = '<p class="hint">Не удалось загрузить</p>'; });
   }
 
-  // ---- память
   function loadMemory() {
     el("memory").innerHTML = '<p class="hint">Загрузка…</p>';
-    api("/api/memory")
-      .then(function (res) {
-        const items = res.items || [];
-        if (!items.length) {
-          el("memory").innerHTML = '<p class="hint">Память пуста — Лилит запомнит всё важное по ходу разговора.</p>';
-          return;
-        }
-        el("memory").innerHTML = "";
-        items.forEach(function (item) {
-          const row = document.createElement("div");
-          row.className = "memory-item";
-          row.innerHTML = "<span class='tag'>" + escapeHtml(item.category) + "</span> " + escapeHtml(item.fact);
-          el("memory").appendChild(row);
-        });
-      })
-      .catch(function () { el("memory").innerHTML = '<p class="hint">Не удалось загрузить</p>'; });
+    api("/api/memory").then(function (res) {
+      const items = res.items || [];
+      if (!items.length) { el("memory").innerHTML = '<p class="hint">Память пуста.</p>'; return; }
+      el("memory").innerHTML = "";
+      items.forEach(function (item) {
+        const row = document.createElement("div");
+        row.className = "memory-item";
+        row.innerHTML = "<span class='tag'>" + escapeHtml(item.category) + "</span> " + escapeHtml(item.fact);
+        el("memory").appendChild(row);
+      });
+    }).catch(function () { el("memory").innerHTML = '<p class="hint">Не удалось загрузить</p>'; });
   }
 
   function escapeHtml(s) {
@@ -133,10 +162,15 @@
     });
   }
 
-  // ---- старт
+  // ---- Старт
   api("/api/me")
-    .then(function (d) { fillProfile(d); fillSettings(d); })
+    .then(function (d) {
+      fillSettings(d);
+      currentStyle = d.image_style || "realistic";
+      setAvatar("flirt");
+      addMessage("assistant", "Ну привет, мой дорогой… Я уже заждалась. Что скажешь?");
+    })
     .catch(function (e) {
-      el("tab-profile").innerHTML = '<p class="hint">Ошибка: ' + escapeHtml(e.message) + '. Открой бота и нажми /start.</p>';
+      el("dialogue-text").textContent = "Ошибка: " + e.message + ". Открой бота и нажми /start.";
     });
 })();
