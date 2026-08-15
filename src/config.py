@@ -13,7 +13,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
-APP_VERSION = "1.1.1"
+APP_VERSION = "1.2.0"
 
 
 class Settings(BaseSettings):
@@ -66,9 +66,9 @@ class Settings(BaseSettings):
     comfyui_poll_interval_seconds: float = 2.0
     image_max_workers: int = 1
     image_photo_rate_limit_minutes: int = 0
-    image_steps: int = 28
+    image_steps: int = 32
     image_cfg: float = 7.0
-    image_default_size: str = "512x768"
+    image_default_size: str = "576x864"
 
     # --- Голос (Piper) ---
     tts_enabled: bool = True

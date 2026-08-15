@@ -4,23 +4,35 @@
     "inputs": {
       "ckpt_name": "dreamshaper_8.safetensors"
     },
-    "_meta": { "title": "Load Checkpoint" }
+    "_meta": {
+      "title": "Load Checkpoint"
+    }
   },
   "5": {
     "class_type": "CLIPTextEncode",
     "inputs": {
       "text": "",
-      "clip": ["4", 1]
+      "clip": [
+        "4",
+        1
+      ]
     },
-    "_meta": { "title": "Positive Prompt" }
+    "_meta": {
+      "title": "Positive Prompt"
+    }
   },
   "6": {
     "class_type": "CLIPTextEncode",
     "inputs": {
       "text": "",
-      "clip": ["4", 1]
+      "clip": [
+        "4",
+        1
+      ]
     },
-    "_meta": { "title": "Negative Prompt" }
+    "_meta": {
+      "title": "Negative Prompt"
+    }
   },
   "7": {
     "class_type": "EmptyLatentImage",
@@ -29,7 +41,9 @@
       "height": 768,
       "batch_size": 1
     },
-    "_meta": { "title": "Empty Latent Image" }
+    "_meta": {
+      "title": "Empty Latent Image"
+    }
   },
   "8": {
     "class_type": "KSampler",
@@ -40,27 +54,100 @@
       "sampler_name": "euler",
       "scheduler": "normal",
       "denoise": 1.0,
-      "model": ["4", 0],
-      "positive": ["5", 0],
-      "negative": ["6", 0],
-      "latent_image": ["7", 0]
+      "model": [
+        "4",
+        0
+      ],
+      "positive": [
+        "5",
+        0
+      ],
+      "negative": [
+        "6",
+        0
+      ],
+      "latent_image": [
+        "7",
+        0
+      ]
     },
-    "_meta": { "title": "KSampler" }
+    "_meta": {
+      "title": "KSampler"
+    }
   },
   "9": {
     "class_type": "VAEDecode",
     "inputs": {
-      "samples": ["8", 0],
-      "vae": ["4", 2]
+      "samples": [
+        "12",
+        0
+      ],
+      "vae": [
+        "4",
+        2
+      ]
     },
-    "_meta": { "title": "VAE Decode" }
+    "_meta": {
+      "title": "VAE Decode"
+    }
   },
   "10": {
     "class_type": "SaveImage",
     "inputs": {
       "filename_prefix": "lilith",
-      "images": ["9", 0]
+      "images": [
+        "9",
+        0
+      ]
     },
-    "_meta": { "title": "Save Image" }
+    "_meta": {
+      "title": "Save Image"
+    }
+  },
+  "11": {
+    "class_type": "LatentUpscale",
+    "inputs": {
+      "upscale_method": "nearest-exact",
+      "width": 864,
+      "height": 1296,
+      "crop": "disabled",
+      "samples": [
+        "8",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Latent Upscale (hi-res)"
+    }
+  },
+  "12": {
+    "class_type": "KSampler",
+    "inputs": {
+      "seed": 42,
+      "steps": 18,
+      "cfg": 6.0,
+      "sampler_name": "euler",
+      "scheduler": "normal",
+      "denoise": 0.5,
+      "model": [
+        "4",
+        0
+      ],
+      "positive": [
+        "2",
+        0
+      ],
+      "negative": [
+        "3",
+        0
+      ],
+      "latent_image": [
+        "11",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "KSampler hi-res"
+    }
   }
 }

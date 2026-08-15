@@ -404,3 +404,22 @@ async def test_reference_image_injected_into_workflow() -> None:
     titles = [(node.get("_meta") or {}).get("title") for node in workflow.values()]
     assert "IPAdapter Unified Loader" in titles
     assert "IPAdapter Apply" in titles
+
+
+async def test_hires_fix_nodes_present() -> None:
+    """Workflow содержит hi-res fix: upscale + второй KSampler."""
+    from pathlib import Path
+
+    from src.providers.comfyui import ComfyUIProvider
+
+    provider = ComfyUIProvider(
+        "http://127.0.0.1:8188",
+        Path("workflows/comfyui_lilith_sd15.json"),
+    )
+    wf = provider._load_workflow()
+    titles = [(node.get("_meta") or {}).get("title") for node in wf.values()]
+    assert "Latent Upscale (hi-res)" in titles
+    assert "KSampler hi-res" in titles
+    # VAEDecode берёт из hi-res KSampler
+    vae = next(n for n in wf.values() if n.get("class_type") == "VAEDecode")
+    assert vae["inputs"]["samples"] == ["12", 0]

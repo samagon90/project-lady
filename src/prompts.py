@@ -54,8 +54,11 @@ class PromptLibrary:
         self.character_sheet = self._load("character_sheet.md")
         self.default_negative_prompt = (
             "worst quality, low quality, bad anatomy, bad hands, extra fingers, "
-            "deformed, watermark, text, signature, photo of real person, celebrity, "
-            "minor, child, underage"
+            "deformed, disfigured, mutation, mutated, ugly, blurry, blur, out of focus, "
+            "amorf, amorphous, melted face, fused face, merged face, distorted face, "
+            "cross-eyed, asymmetric eyes, bad eyes, bad face, extra limbs, missing limbs, "
+            "poorly drawn, sketch, watermark, text, signature, photo of real person, "
+            "celebrity, minor, child, underage"
         )
 
     def _load(self, name: str) -> str:
