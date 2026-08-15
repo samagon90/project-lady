@@ -19,6 +19,7 @@ from src.providers.base import (
 from src.providers.comfyui import ComfyUIProvider
 from src.providers.embeddings import EmbeddingsService, SemanticMemoryStore
 from src.providers.ollama import OllamaLLMProvider
+from src.providers.openrouter import OpenAICompatLLMProvider
 from src.providers.piper import PiperTTSProvider
 from src.services.audit import AuditService
 from src.services.chat import ChatService
@@ -167,13 +168,39 @@ def build_app_context(
     database = db or Database(settings.database_url)
     prompts = PromptLibrary()
 
-    llm_provider = llm or OllamaLLMProvider(
-        settings.llm_base_url,
-        settings.llm_model,
-        temperature=settings.llm_temperature,
-        timeout_seconds=settings.llm_timeout_seconds,
-        retries=settings.llm_retries,
-    )
+    if llm is not None:
+        llm_provider = llm
+    elif settings.llm_provider == "openrouter":
+        extra = {}
+        if settings.openrouter_providers:
+            extra["HTTP-Referer"] = "https://github.com/samagon90/project-lady"
+            extra["X-Title"] = "Lilith bot"
+        llm_provider = OpenAICompatLLMProvider(
+            "https://openrouter.ai/api/v1",
+            settings.openrouter_api_key,
+            settings.openrouter_model,
+            temperature=settings.llm_temperature,
+            timeout_seconds=settings.llm_timeout_seconds,
+            retries=settings.llm_retries,
+            extra_headers=extra,
+        )
+    elif settings.llm_provider == "venice":
+        llm_provider = OpenAICompatLLMProvider(
+            "https://api.venice.ai/api/v1",
+            settings.venice_api_key,
+            settings.venice_model,
+            temperature=settings.llm_temperature,
+            timeout_seconds=settings.llm_timeout_seconds,
+            retries=settings.llm_retries,
+        )
+    else:
+        llm_provider = OllamaLLMProvider(
+            settings.llm_base_url,
+            settings.llm_model,
+            temperature=settings.llm_temperature,
+            timeout_seconds=settings.llm_timeout_seconds,
+            retries=settings.llm_retries,
+        )
 
     # Ollama умеет и chat, и embeddings — поэтому LLM-провайдер используется
     # как embeddings-провайдер, если не передан отдельный.

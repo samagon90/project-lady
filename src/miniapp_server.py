@@ -135,7 +135,7 @@ class MiniAppServer:
         if emotion not in allowed:
             emotion = "neutral"
         # Запасные: если файла эмоции нет — берём близкую
-        fallback_map = {}
+        fallback_map: dict[str, str] = {}
         from pathlib import Path
 
         stage = int(request.query.get("stage", "1") or "1")

@@ -13,7 +13,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
-APP_VERSION = "1.6.0"
+APP_VERSION = "1.7.0"
 
 
 class Settings(BaseSettings):
@@ -30,9 +30,22 @@ class Settings(BaseSettings):
     # --- База данных ---
     database_url: str = "sqlite+aiosqlite:///./data/bot.db"
 
-    # --- LLM (Ollama) ---
+    # --- LLM ---
+    # Провайдер: ollama (локально) | openrouter | venice
+    llm_provider: str = "openrouter"
+    # Ollama (если llm_provider=ollama):
     llm_base_url: str = "http://127.0.0.1:11434"
-    llm_model: str = "qwen2.5:7b"
+    # OpenRouter: ключ и модель (NSFW-дружественные — см. README).
+    # Примеры: openrouter/free (авто), deepinfra/..., novita/..., together/...
+    openrouter_api_key: str = ""
+    openrouter_model: str = "openrouter/free"
+    # Ограничить провайдеров (через запятую): DeepInfra,Novita,Together
+    openrouter_providers: str = ""
+    # Venice (самый либеральный NSFW): ключ и модель
+    venice_api_key: str = ""
+    venice_model: str = "venice/llama-3.3-70b"
+    # Общие параметры LLM
+    llm_model: str = "qwen2.5:7b"  # используется только для ollama
     llm_temperature: float = 0.8
     llm_max_tokens: int = 1024
     llm_timeout_seconds: float = 120.0
