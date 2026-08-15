@@ -269,6 +269,38 @@ def _nsfw_prompt_kb():
     )
 
 
+# ===================================================================== /avatar
+
+@router.message(Command("avatar"))
+async def cmd_avatar(message: Message, bot: Bot, app_ctx: AppContext, user: DbUser | None) -> None:
+    if not _require_user(user):
+        await _not_registered(message, bot)
+        return
+    assert user is not None
+    from pathlib import Path
+
+    async with app_ctx.db.session() as session:
+        prefs = await PreferencesRepository(session).get_or_create(user)
+    avatar = (
+        Path("assets/lilith_avatar_anime.png")
+        if prefs.image_style == "anime"
+        else Path("assets/lilith_avatar.png")
+    )
+    path = app_ctx.settings.resolve_path(avatar)
+    if not path.exists():
+        await bot.send_message(chat_id=message.chat.id, text="Аватар не найден 😔")
+        return
+    await bot.send_photo(
+        chat_id=message.chat.id,
+        photo=FSInputFile(str(path)),
+        caption=(
+            "🖤 Это я — Лилит. "
+            + ("🖌 рисованный стиль" if prefs.image_style == "anime" else "📸 реалистичный")
+            + ". Смени стиль: /style"
+        ),
+    )
+
+
 # ===================================================================== /style
 
 @router.message(Command("style"))

@@ -213,8 +213,18 @@ class ImageService:
         # Fallback-промпт (если LLM-модуль не вернул JSON): НЕ отправляем сырой
         # русский текст — модель-художник его не понимает и рисует «что попало».
         # Вместо этого берём английский шаблон с описанием взрослой девушки.
+        # Fallback: если пользователь не просил иную внешность — рисуем ЛИТЛИТ
+        # (якорь внешности), а не «asian». «Азиатка» рисуется только если
+        # пользователь явно её попросил (тогда перевод даст asian).
+        if "азиат" in text.lower():
+            fallback_subject = "asian woman, 24 years old"
+        else:
+            fallback_subject = (
+                "1girl, red hair, wavy hair, green eyes, pale skin, freckles, "
+                "tall, slim, high cheekbones, 24 years old"
+            )
         fallback_prompt = (
-            "beautiful adult woman, 24 years old, "
+            fallback_subject + ", "
             + _translate_request_to_tags(text)
             + (f", wearing {outfit}" if outfit else "")
             + ", nude, topless, explicit, nsfw, uncensored, full body, "

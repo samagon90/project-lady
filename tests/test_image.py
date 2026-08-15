@@ -347,3 +347,20 @@ async def test_fallback_prompt_translates_russian(ctx: AppContext, fake_llm) -> 
     assert result.nsfw is True
     # никакого сырого русского в промпте
     assert "нарисуй" not in result.prompt.lower()
+
+
+async def test_fallback_prompt_uses_lilith_not_asian(ctx: AppContext, fake_llm) -> None:
+    """Fallback по умолчанию рисует Лилит (red hair, freckles), а не азиатку."""
+    fake_llm.fail = True
+    await onboard(ctx, 8118, nsfw=True)
+    result = await ctx.image_service._build_image_prompt("нарисуй сексуальную девушку")
+    assert "red hair" in result.prompt.lower()
+    assert "freckles" in result.prompt.lower()
+    assert "asian" not in result.prompt.lower()
+
+
+async def test_fallback_prompt_asian_only_when_requested(ctx: AppContext, fake_llm) -> None:
+    fake_llm.fail = True
+    await onboard(ctx, 8119, nsfw=True)
+    result = await ctx.image_service._build_image_prompt("нарисуй сексуальную азиатку")
+    assert "asian" in result.prompt.lower()
