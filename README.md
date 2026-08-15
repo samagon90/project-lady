@@ -166,11 +166,11 @@ TELEGRAM_TOKEN=123456789:AA...
 # Установка Ollama (Linux):
 curl -fsSL https://ollama.com/install.sh | sh
 
-# Модель для общения (любая; примеры: qwen2.5:7b, gemma2:9b, llama3.1:8b, mistral:7b):
-ollama pull qwen2.5:7b
-# Для максимально раскованного NSFW (без встроенной цензуры):
-#   ollama pull dolphin-llama3:8b
-#   затем в .env: LLM_MODEL=dolphin-llama3:8b
+# Модель для общения (рекомендуется Qwen 3 без цензуры):
+ollama pull huihui_ai/qwen3-abliterated:14b
+# Для слабых ПК — 8b:
+#   ollama pull huihui_ai/qwen3-abliterated:8b
+# Классика: dolphin3:8b
 
 # Модель для embeddings (семантическая память):
 ollama pull nomic-embed-text

@@ -23,7 +23,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 VENV_PY = ROOT / ".venv" / "Scripts" / "python.exe"
-VERSION = "1.3.1"
+VERSION = "1.4.0"
 
 # Минимальный размер настоящего checkpoint (меньше — точно HTML/мусор)
 MIN_CHECKPOINT_BYTES = 50 * 1024 * 1024
@@ -153,26 +153,24 @@ def pull_models() -> None:
     else:
         print("Рекомендую модель без цензуры для свободного NSFW (7b).")
     choice = ask(
-        "Какую модель скачать? (от этого зависит «раскованность» Леи)",
+        "Какую модель скачать? (от этого зависит «раскованность» Лилит)",
         {
-            "abl": "Без цензуры (dolphin-llama3:8b, ~4.7 ГБ) — надёжная, рекомендую",
-            "qabl": "Без цензуры Qwen (huihui_ai/qwen2.5-abliterate:7b, ~5 ГБ) — ВНИМАНИЕ: может отвечать иероглифами",
-            "3b": "Компактная (qwen2.5:3b, ~2 ГБ) — для слабых ПК",
-            "7b": "Стандартная (qwen2.5:7b, ~5 ГБ) — цензура встроена, но надёжная",
+            "q14": "Qwen 3 без цензуры 14b (huihui_ai/qwen3-abliterated:14b, ~9 ГБ) — лучшая, рекомендую",
+            "q8": "Qwen 3 без цензуры 8b (huihui_ai/qwen3-abliterated:8b, ~5 ГБ) — для слабых ПК",
+            "dol": "Dolphin 3 (dolphin3:8b, ~5 ГБ) — надёжная классика",
         },
     )
     candidates = {
-        "abl": [
-            "dolphin-llama3:8b",
-            "qwen2.5:7b",             # запас: надёжная, цензура
+        "q14": [
+            "huihui_ai/qwen3-abliterated:14b",
+            "huihui_ai/qwen3-abliterated:8b",   # запас
+            "dolphin3:8b",                       # крайний запас
         ],
-        "qabl": [
-            "huihui_ai/qwen2.5-abliterate:7b",
-            "dolphin-llama3:8b",      # запас
-            "qwen2.5:7b",             # крайний запас
+        "q8": [
+            "huihui_ai/qwen3-abliterated:8b",
+            "dolphin3:8b",
         ],
-        "3b": ["qwen2.5:3b"],
-        "7b": ["qwen2.5:7b"],
+        "dol": ["dolphin3:8b"],
     }[choice]
     chosen = None
     for model in candidates:
