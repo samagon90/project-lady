@@ -102,8 +102,8 @@
         // Лилит реагирует: меняет позу (эмоция) и раскованность (stage)
         if (res.emotion) setAvatar(res.emotion, res.stage || currentStage);
       })
-      .catch(function () {
-        addMessage("assistant", "Связь прервалась… Попробуй ещё раз.");
+      .catch(function (e) {
+        addMessage("assistant", "… (модель не ответила: " + (e.message || "ошибка") + ")");
       });
   }
 

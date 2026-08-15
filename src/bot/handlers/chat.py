@@ -238,8 +238,8 @@ async def on_text(message: Message, bot: Bot, app_ctx: AppContext, user: DbUser 
         await bot.send_message(
             chat_id=message.chat.id,
             text=(
-                "😔 Моя языковая модель сейчас недоступна (локальный сервер Ollama "
-                "не отвечает). Попробуй через пару минут — текстовый режим вернётся."
+                "😔 Моя языковая модель сейчас недоступна. Попробуй через пару "
+                "минут — текстовый режим вернётся."
             ),
         )
         return
