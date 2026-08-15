@@ -194,20 +194,24 @@ class ImageService:
         if not isinstance(data, dict):
             data = {}
         width, height = self.settings.default_image_size
-        try:
-            width = int(data.get("width", width))
-            height = int(data.get("height", height))
-        except (TypeError, ValueError):
-            pass
+        # Fallback-промпт (если LLM-модуль не вернул JSON): НЕ отправляем сырой
+        # русский текст — модель-художник его не понимает и рисует «что попало».
+        # Вместо этого берём английский шаблон с описанием взрослой девушки.
+        fallback_prompt = (
+            "beautiful adult woman, 24 years old, "
+            + _translate_request_to_tags(text)
+            + ", nude, topless, explicit, nsfw, uncensored, full body, "
+            "sensual pose, photorealistic, detailed face, soft light, 8k"
+        )
         return ImageRequest(
-            prompt=str(data.get("prompt") or text),
+            prompt=str(data.get("prompt") or fallback_prompt),
             negative_prompt=str(data.get("negative_prompt") or self.prompts.default_negative_prompt),
             width=width,
             height=height,
             steps=int(data.get("steps", self.settings.image_steps)),
             cfg=float(data.get("cfg", self.settings.image_cfg)),
             seed=int(data.get("seed", -1)),
-            nsfw=bool(data.get("nsfw", False)),
+            nsfw=bool(data.get("nsfw", False)) or _is_adult_request(text),
         )
 
     # ------------------------------------------------------------------ выполнение (воркер)
@@ -323,3 +327,46 @@ def _user_proxy(user_id: int, telegram_user_id: int) -> User:
     user.id = user_id
     user.telegram_user_id = telegram_user_id
     return user
+
+
+def _translate_request_to_tags(text: str) -> str:
+    """Переводит ключевые слова запроса в английские теги для fallback-промпта."""
+    mapping = {
+        "азиат": "asian",
+        "брюнет": "brunette, dark hair",
+        "блондин": "blonde",
+        "рыж": "redhead",
+        "сексуальн": "sexy, attractive",
+        "красив": "beautiful, gorgeous",
+        "гол": "nude, topless",
+        "обнаж": "nude, topless",
+        "эрот": "erotic, explicit",
+        "стройн": "slim, fit",
+        "пышн": "curvy, voluptuous",
+        "высок": "tall",
+        "молод": "young adult",
+        "девушк": "woman, girl",
+        "женщин": "woman",
+        "в платье": "in elegant dress",
+        "в белье": "in lingerie",
+        "в купальник": "in bikini",
+        "вечерн": "evening",
+        "закат": "sunset",
+        "пляж": "on the beach",
+        "спальн": "in bedroom",
+        "ванн": "in bathroom",
+    }
+    tags = []
+    low = text.lower()
+    for ru, en in mapping.items():
+        if ru in low:
+            tags.append(en)
+    return ", ".join(tags) if tags else "adult woman"
+
+
+def _is_adult_request(text: str) -> bool:
+    low = text.lower()
+    return any(
+        w in low
+        for w in ("гол", "обнаж", "секс", "эрот", "ню", "nude", "naked", "nsfw")
+    )

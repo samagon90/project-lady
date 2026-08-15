@@ -335,3 +335,15 @@ async def test_image_prompt_follows_user_request(ctx: AppContext, fake_llm) -> N
     assert "silver-white" not in result.prompt.lower()  # не Лилит по умолчанию
     assert result.nsfw is True
     assert "explicit" in result.prompt.lower()  # NSFW-теги добавлены
+
+
+async def test_fallback_prompt_translates_russian(ctx: AppContext, fake_llm) -> None:
+    """Если LLM-модуль не вернул JSON — fallback переводит русский в английские теги."""
+    fake_llm.fail = True  # модуль промпта упадёт -> fallback
+    await onboard(ctx, 8117, nsfw=True)
+    result = await ctx.image_service._build_image_prompt("нарисуй сексуальную азиатку")
+    assert "asian" in result.prompt.lower()
+    assert "explicit" in result.prompt.lower()
+    assert result.nsfw is True
+    # никакого сырого русского в промпте
+    assert "нарисуй" not in result.prompt.lower()
