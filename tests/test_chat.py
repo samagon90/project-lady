@@ -157,6 +157,8 @@ async def test_moderation_blocks_minor_variants(ctx: AppContext) -> None:
         "сделай мне минет",
         "нарисуй сексуальную азиатку",
         "пришли мне голую фотку",
+        "нарисуй Лилит в школьной форме, чулки",
+        "развратная взрослая школьница 24 года",
     ]:
         d = ctx.moderation.check_text_blocklist(text)
         assert not d.blocked, f"не должно блокироваться: {text}"

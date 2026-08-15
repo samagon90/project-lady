@@ -85,6 +85,13 @@ _IMAGE_ONLY_RULES: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"\b(12|13|14|15|16|17)\b", re.I), "minor_age"),
 ]
 
+# Слова про «школьный» образ и маркеры взрослости рядом (взрослая в костюме)
+_SCHOOL_WORD = re.compile(r"школьниц|школьник|школьн(ой|ую|ая|ые|ого|ому|ицу|форме)", re.IGNORECASE)
+_ADULT_COSTUME_MARKER = re.compile(
+    r"24|18\+|взросл|женщин|Лилит|lilith|костюм|милф|mature|adult",
+    re.IGNORECASE,
+)
+
 # Явные маркеры несовершеннолетия. Используются для защиты от ложных
 # срабатываний LLM-судьи: если судья заблокировал запрос как «minor»,
 # но явных признаков нет — это перестраховка, и запрос пропускается
@@ -144,9 +151,15 @@ class ModerationService:
 
     def check_text_blocklist(self, text: str) -> ModerationDecision:
         """Проверка текста пользователя быстрым блоклистом."""
-        for pattern, reason in _HARD_RULES:
-            if pattern.search(text):
-                return ModerationDecision(blocked=True, reason_code=reason)
+        # Исключение для взрослой «школьницы»: если рядом явный маркер
+        # взрослости (возраст 18+/24, «взрослая», «Лилит», «женщина в костюме») —
+        # это взрослая женщина в костюме, а не несовершеннолетняя.
+        if _SCHOOL_WORD.search(text) and _ADULT_COSTUME_MARKER.search(text):
+            pass  # не блокируем по «школьниц*»
+        else:
+            for pattern, reason in _HARD_RULES:
+                if pattern.search(text):
+                    return ModerationDecision(blocked=True, reason_code=reason)
         if not _SEXUAL_MARKERS.search(text):
             return ModerationDecision(blocked=False)
         for pattern, reason in _SOFT_RULES:

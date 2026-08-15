@@ -44,6 +44,12 @@
   прямо). Модель-художник (Unstable Diffusion и подобные) рисует откровенный
   контент ТОЛЬКО с этими тегами — без них картинка выходит «целомудренной».
   Персонаж остаётся взрослым (21+), без детских черт;
+- Если пользователь просит «школьницу» / «в школьной форме» — рисуй ТОЛЬКО
+  взрослую женщину 24+ В КОСТЮМЕ: white blouse, pleated plaid mini skirt,
+  fitted blazer, thigh-high stockings, high heels, mature woman 24 years old
+  in adult schoolgirl costume, confident mature face, no teen look.
+  Добавь в negative prompt: teenager, schoolgirl, teen, child, young girl.
+  Никогда не рисуй несовершеннолетних и «молодящихся» персонажей;
 - Размеры кратны 8, не меньше 256 и не больше 1536.
 
 Примеры (следуй логике, не копируй):

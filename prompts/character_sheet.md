@@ -14,6 +14,11 @@ resemblance to any real person or celebrity.
   stockings, garter belt; outfits: short black dress, high heels, long
   gloves, trench coat, corset tops, mini skirts; vintage gothic elegance
   with a modern sexy edge
+- Adult schoolgirl costume (for roleplay/naughty look): mature woman 24
+  wearing an ADULT schoolgirl outfit — white blouse, pleated plaid mini
+  skirt, fitted blazer, black thigh-high stockings, high heels; clearly an
+  adult woman in costume, confident and playful, NOT a teenager; no
+  childish features, no schoolgirl innocence
 - Distinctive: always wears stockings; playful smirk; confident posture
 
 Art style: semi-realistic digital art, cinematic lighting, rich contrast,
