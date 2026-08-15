@@ -90,6 +90,11 @@ async def on_text(message: Message, bot: Bot, app_ctx: AppContext, user: DbUser 
         outfit_desc = _DRESS_INTENT.sub("", text).strip(" ,.!?:;-")
         outfit_desc = re.sub(r"^(в|во|в\\s+)?", "", outfit_desc).strip()
         outfit_desc = re.sub(r"\\s+", " ", outfit_desc)
+        # «раздевайся» / «в белье» — спец-наряд
+        if re.search(r"бель|раздевай|сними одежд", outfit_desc, re.I) and not re.search(
+            r"костюм|платье|юбк|наряд", outfit_desc, re.I
+        ):
+            outfit_desc = "только чёрное кружевное бельё и чулки на подвязках"
         if outfit_desc and len(outfit_desc) < 200:
             async with app_ctx.db.session() as session:
                 await PreferencesRepository(session).update_fields(user, outfit=outfit_desc)

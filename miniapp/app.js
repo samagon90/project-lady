@@ -53,12 +53,14 @@
   let currentStyle = "realistic";
   let currentEmotion = "neutral";
   let currentStage = 1; // 1=одета, 2=блузка расстёгнута, 3=в белье/чулках, 4=топлес
+  let currentClothes = ""; // "" = школьный костюм, "lingerie" = нижнее бельё
 
   function setAvatar(emotion, stage) {
     currentEmotion = emotion || "neutral";
     if (stage) currentStage = Math.max(1, Math.min(4, stage));
     const stagePath = currentStage > 1 ? "&stage=" + currentStage : "";
-    el("avatar").src = "/api/avatar?style=" + currentStyle + "&emotion=" + currentEmotion + stagePath;
+    const clothesPath = currentClothes ? "&clothes=" + currentClothes : "";
+    el("avatar").src = "/api/avatar?style=" + currentStyle + "&emotion=" + currentEmotion + stagePath + clothesPath;
     const labels = {
       neutral: "😌", flirt: "😏", passion: "🔥", playful: "😜", tender: "💗", serious: "😐",
       happy: "😊", sad: "😢", angry: "😠", surprised: "😲", shy: "😳", proud: "😎",
@@ -101,6 +103,17 @@
         addMessage("assistant", "Связь прервалась… Попробуй ещё раз.");
       });
   }
+
+  // Кнопка «в белье / одеться»
+  const clothesBtn = document.createElement("button");
+  clothesBtn.id = "clothes-btn";
+  clothesBtn.textContent = "🩲 В белье";
+  document.getElementById("input-row").appendChild(clothesBtn);
+  clothesBtn.addEventListener("click", function () {
+    currentClothes = currentClothes === "lingerie" ? "" : "lingerie";
+    clothesBtn.textContent = currentClothes === "lingerie" ? "👗 Одеться" : "🩲 В белье";
+    setAvatar(currentEmotion);
+  });
 
   el("send-btn").addEventListener("click", sendChat);
   el("chat-input").addEventListener("keydown", function (e) { if (e.key === "Enter") sendChat(); });

@@ -111,6 +111,17 @@ body {
   font-size: 14px;
 }
 
+#clothes-btn {
+  padding: 10px 12px;
+  border: 1px solid #55304a;
+  border-radius: 12px;
+  background: #1e0f1a;
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
 #send-btn {
   width: 46px;
   border: none;

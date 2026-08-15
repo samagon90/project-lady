@@ -140,10 +140,16 @@ class MiniAppServer:
 
         stage = int(request.query.get("stage", "1") or "1")
         stage = max(1, min(4, stage))
+        clothes = request.query.get("clothes", "")
         if style == "anime":
             base = Path("assets/emotions") / f"lilith_{emotion}_anime.png"
             if not base.exists():
                 base = Path("assets/lilith_avatar_anime.png")
+        elif clothes == "lingerie":
+            # Лилит в нижнем белье (если файл есть — иначе обычная эмоция)
+            base = Path("assets/emotions/lingerie") / f"lilith_{emotion}_lingerie.png"
+            if not base.exists():
+                base = Path("assets/emotions") / f"lilith_{emotion}.png"
         elif emotion in fallback_map and not (Path("assets/emotions") / f"lilith_{emotion}.png").exists():
             base = Path("assets/emotions") / f"lilith_{fallback_map[emotion]}.png"
         else:
