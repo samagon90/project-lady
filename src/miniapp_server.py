@@ -96,14 +96,20 @@ class MiniAppServer:
     # ------------------------------------------------------------- static
 
     async def _index(self, request: web.Request) -> web.Response:
+        path = MINIAPP_DIR / "index.html"
+        if not path.exists():
+            return web.Response(text="Mini App files not found", status=500)
         return web.Response(
-            text=(MINIAPP_DIR / "index.html").read_text(encoding="utf-8"),
+            text=path.read_text(encoding="utf-8"),
             content_type="text/html; charset=utf-8",
         )
 
     async def _static_js(self, request: web.Request) -> web.Response:
+        path = MINIAPP_DIR / "app.js"
+        if not path.exists():
+            return web.Response(text="app.js not found", status=500)
         return web.Response(
-            text=(MINIAPP_DIR / "app.js").read_text(encoding="utf-8"),
+            text=path.read_text(encoding="utf-8"),
             content_type="application/javascript; charset=utf-8",
         )
 
@@ -162,7 +168,9 @@ class MiniAppServer:
             if user is None:
                 return web.json_response({"error": "not_registered"}, status=404)
             prefs = await PreferencesRepository(session).get_or_create(user)
-            consents = await _consent_flags(self.db, user.id)
+            from src.database.repositories import ConsentRepository
+
+            nsfw = await ConsentRepository(session).get_active(user.id, "nsfw")
         return web.json_response(
             {
                 "telegram_user_id": uid,
@@ -174,7 +182,7 @@ class MiniAppServer:
                 "speech_style": prefs.speech_style,
                 "interests": prefs.interests,
                 "boundaries": prefs.boundaries,
-                "consent_nsfw": consents[1],
+                "consent_nsfw": nsfw is not None,
             }
         )
 
@@ -313,10 +321,3 @@ class MiniAppServer:
             self.runner = None
 
 
-async def _consent_flags(db: Database, user_id: int) -> tuple[bool, bool]:
-    from src.database.repositories import ConsentRepository
-
-    async with db.session() as session:
-        base = await ConsentRepository(session).get_active(user_id, "base")
-        nsfw = await ConsentRepository(session).get_active(user_id, "nsfw")
-    return base is not None, nsfw is not None

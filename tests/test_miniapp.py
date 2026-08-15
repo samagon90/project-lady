@@ -88,3 +88,16 @@ class _FakeRequest:
 
     async def json(self):
         return json.loads(self._body)
+
+
+async def test_miniapp_api_me_no_nested_session(ctx) -> None:
+    """api/me работает без вложенных сессий (лечит 500 в SQLite)."""
+    token = "123:TESTTOKEN"
+    await onboard(ctx, 8890, nsfw=True)
+    server = MiniAppServer(ctx.db, token)
+    init = _make_init_data(token, 8890)
+    request = _FakeRequest(headers={"x-init-data": init})
+    resp = await server._api_me(request)
+    assert resp.status == 200, resp.body
+    data = json.loads(resp.body)
+    assert data["consent_nsfw"] is True
