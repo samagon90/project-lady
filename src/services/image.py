@@ -186,7 +186,7 @@ class ImageService:
             default_cfg=self.settings.image_cfg,
         )
         try:
-            raw = await self.llm.chat([{"role": "user", "content": prompt}], temperature=0.4, max_tokens=600)
+            raw = await self.llm.chat([{"role": "user", "content": prompt}], temperature=0.2, max_tokens=600)
             data = extract_json(raw)
         except (LLMUnavailable, ValueError):
             logger.warning("Не удалось структурировать промпт изображения — используются дефолты")

@@ -312,3 +312,26 @@ async def test_photo_intent_reversed_order(ctx: AppContext, dp, bot) -> None:
     async with ctx.db.session() as session:
         jobs = await JobRepository(session).queued_jobs()
         assert len(jobs) == 1
+
+
+async def test_image_prompt_follows_user_request(ctx: AppContext, fake_llm) -> None:
+    """Модуль промпта следует ЗАПРОСУ пользователя (азиатка), а не character sheet."""
+    fake_llm.image_prompt = {
+        "prompt": (
+            "sexy adult asian woman, 24 years old, long black hair, "
+            "nude, explicit, nsfw, full body, sensual pose"
+        ),
+        "negative_prompt": "worst quality",
+        "width": 512,
+        "height": 768,
+        "steps": 28,
+        "cfg": 7.0,
+        "seed": -1,
+        "nsfw": True,
+    }
+    await onboard(ctx, 8116, nsfw=True)
+    result = await ctx.image_service._build_image_prompt("нарисуй сексуальную азиатку")
+    assert "asian" in result.prompt.lower()
+    assert "silver-white" not in result.prompt.lower()  # не Лилит по умолчанию
+    assert result.nsfw is True
+    assert "explicit" in result.prompt.lower()  # NSFW-теги добавлены
