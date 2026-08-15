@@ -1,4 +1,4 @@
-# Character sheet: Лея (вымышленный персонаж, 24 года)
+# Character sheet: Лилит (вымышленный персонаж, 24 года)
 
 ADULT fictional woman, 24 years old. Fully fictional appearance — no
 resemblance to any real person or celebrity.

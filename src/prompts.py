@@ -44,7 +44,7 @@ class PromptLibrary:
 
     def __init__(self, prompts_dir: Path | None = None) -> None:
         self.dir = (prompts_dir or (PROJECT_ROOT / "prompts")).resolve()
-        self.persona = self._load("persona_leya.md")
+        self.persona = self._load("persona_lilith.md")
         self.system_template = self._load("system.md")
         self.safety_rules = self._load("safety_rules.md")
         self.extraction_prompt = self._load("extract_facts.md")

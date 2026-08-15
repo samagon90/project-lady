@@ -321,7 +321,7 @@ async def cmd_photo(message: Message, bot: Bot, app_ctx: AppContext, user: DbUse
     await state.set_state(PhotoStates.prompt)
     await bot.send_message(
         chat_id=message.chat.id,
-        text="🎨 Что нарисовать? Опиши сцену, настроение, одежду. Например: «Лея в осеннем парке, тёплый вечер»",
+        text="🎨 Что нарисовать? Опиши сцену, настроение, одежду. Например: «Лилит в осеннем парке, тёплый вечер»",
         reply_markup=photo_cancel_kb(),
     )
 

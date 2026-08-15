@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "project-lady"
 version = "0.1.0"
-description = "Telegram-бот «Лея»: виртуальный ИИ-компаньон для совершеннолетних пользователей на полностью локальном бесплатном стеке (Ollama + ComfyUI + Piper)"
+description = "Telegram-бот «Лилит»: виртуальный ИИ-компаньон для совершеннолетних пользователей на полностью локальном бесплатном стеке (Ollama + ComfyUI + Piper)"
 readme = "README.md"
 requires-python = ">=3.12"
 license = { text = "MIT" }

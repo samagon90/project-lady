@@ -1,5 +1,5 @@
 @echo off
-title Leia bot checker
+title Lilith bot checker
 cd /d "%~dp0"
 
 if not exist ".venv\Scripts\python.exe" (

@@ -1,4 +1,4 @@
-# project-lady — Telegram-бот «Лея» 🌸
+# project-lady — Telegram-бот «Лилит» 🌸
 
 **Виртуальная девушка-компаньон для совершеннолетних пользователей (18+).**
 Полностью локальный и бесплатный стек: никаких платных API.
@@ -57,10 +57,10 @@
 
 ## Возможности
 
-- Общение на русском языке с персонажем «Лея» — величавая игривая госпожа
+- Общение на русском языке с персонажем «Лилит» — величавая игривая госпожа
   24 лет с вампирическим шармом (в духе леди Диметреску): аристократичная,
   соблазнительная, без табу на взрослые темы в NSFW-режиме
-  (характер, стиль и правила — в `prompts/persona_leya.md`);
+  (характер, стиль и правила — в `prompts/persona_lilith.md`);
 - Уровни общения: `0 — дружеский`, `1 — лёгкий флирт`, `2 — романтический`, `3 — NSFW`;
 - NSFW включается **только** после 18+ и отдельного согласия (версия и дата сохраняются), никогда — автоматически;
 - Генерация изображений персонажа через ComfyUI с очередью задач и сообщением «Изображение создаётся…»;
@@ -144,7 +144,7 @@ make install        # создаёт .venv и ставит зависимост�
 ### Шаг 2. Telegram-бот через BotFather
 
 1. Откройте в Telegram [@BotFather](https://t.me/BotFather);
-2. `/newbot` → имя бота (например, «Лея») → username (например, `leya_companion_bot`);
+2. `/newbot` → имя бота (например, «Лилит») → username (например, `lilith_companion_bot`);
 3. Скопируйте **токен** вида `123456789:AA...` и вставьте в `.env`:
 
 ```dotenv
@@ -220,7 +220,7 @@ pip install -r requirements.txt
 python main.py --listen 0.0.0.0 --port 8188 --cpu
 ```
 
-Бот шлёт workflow из `workflows/comfyui_leya_sd15.json`, подставляя значения в узлы
+Бот шлёт workflow из `workflows/comfyui_lilith_sd15.json`, подставляя значения в узлы
 по **названию узла** (title): `Load Checkpoint`, `Positive Prompt`, `Negative Prompt`,
 `Empty Latent Image`, `KSampler`, `Save Image`. Если добавите узел `LoraLoader`
 с title `Load LoRA` — бот подставит имя LoRA из `COMFYUI_LORA`.
@@ -325,7 +325,7 @@ journalctl -u project-lady -f        # логи
    COMFYUI_NSFW_LORA=ваша_nsfw_lora.safetensors            # опционально
    ```
 3. Для качества лучше SDXL: в `.env` поменяйте
-   `COMFYUI_WORKFLOW_PATH=workflows/comfyui_leya_sdxl.json` и
+   `COMFYUI_WORKFLOW_PATH=workflows/comfyui_lilith_sdxl.json` и
    `IMAGE_DEFAULT_SIZE=832x1216` (нужен SDXL-checkpoint ~6–7 ГБ).
 4. В Telegram: `/photo <описание>` — бот сам определит эротический запрос,
    проверит NSFW-согласие (18+ + отдельный opt-in) и поставит в очередь.

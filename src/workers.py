@@ -144,7 +144,7 @@ class RetentionWorker:
 
 
 class ProactiveWorker:
-    """Лея сама пишет пользователям, которые давно не заходили."""
+    """Лилит сама пишет пользователям, которые давно не заходили."""
 
     def __init__(self, ctx, bot: Bot, stop_event: asyncio.Event) -> None:
         self.ctx = ctx

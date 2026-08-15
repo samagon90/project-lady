@@ -70,7 +70,7 @@
   "7": {
     "class_type": "SaveImage",
     "inputs": {
-      "filename_prefix": "leya",
+      "filename_prefix": "lilith",
       "images": ["6", 0]
     },
     "_meta": { "title": "Save Image" }

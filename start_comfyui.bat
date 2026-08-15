@@ -1,5 +1,5 @@
 @echo off
-title ComfyUI for Leia bot (CPU mode)
+title ComfyUI for Lilith bot (CPU mode)
 cd /d "%~dp0"
 if not exist "venv\Scripts\python.exe" (
     echo First run the bot launcher and choose to install ComfyUI.

@@ -1,6 +1,6 @@
 @echo off
 setlocal
-title Leia bot launcher
+title Lilith bot launcher
 cd /d "%~dp0"
 
 rem --- guard: old versions have no launcher.py ---

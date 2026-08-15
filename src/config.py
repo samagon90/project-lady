@@ -13,7 +13,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
-APP_VERSION = "0.3.1"
+APP_VERSION = "0.3.2"
 
 
 class Settings(BaseSettings):
@@ -53,7 +53,7 @@ class Settings(BaseSettings):
 
     # --- Изображения (ComfyUI) ---
     comfyui_base_url: str = "http://127.0.0.1:8188"
-    comfyui_workflow_path: Path = Path("workflows/comfyui_leya_sd15.json")
+    comfyui_workflow_path: Path = Path("workflows/comfyui_lilith_sd15.json")
     comfyui_checkpoint: str = "dreamshaper_8.safetensors"
     comfyui_lora: str = ""
     # Отдельные checkpoint/LoRA для NSFW-запросов (18+, вымышленный персонаж).
@@ -98,7 +98,7 @@ class Settings(BaseSettings):
     log_file: Path | None = Path("data/bot.log")
     audit_enabled: bool = True
 
-    # --- Проактивные сообщения (Лея пишет первой) ---
+    # --- Проактивные сообщения (Лилит пишет первой) ---
     proactive_enabled: bool = True
     proactive_interval_minutes: int = 30
     proactive_min_inactivity_hours: int = 6

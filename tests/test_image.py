@@ -26,7 +26,7 @@ async def _submit_photo(ctx: AppContext, uid: int, text: str):
 async def test_photo_success(ctx: AppContext, dp, bot, fake_llm: FakeLLM) -> None:
     user_a = tg_user(8001, "Hana")
     await onboard(ctx, 8001)
-    await dp.feed_update(bot, make_update_message(8001, user_a, "/photo Лея в осеннем парке"))
+    await dp.feed_update(bot, make_update_message(8001, user_a, "/photo Лилит в осеннем парке"))
     assert "создаётся" in bot.last_text()
 
     async with ctx.db.session() as session:
@@ -53,7 +53,7 @@ async def test_photo_success(ctx: AppContext, dp, bot, fake_llm: FakeLLM) -> Non
 async def test_photo_job_flow_through_worker(ctx: AppContext, bot, fake_llm: FakeLLM) -> None:
     """Полный цикл: submit -> очередь -> воркер -> отправка."""
     await onboard(ctx, 8002)
-    result = await _submit_photo(ctx, 8002, "Лея читает книгу у окна")
+    result = await _submit_photo(ctx, 8002, "Лилит читает книгу у окна")
     assert result.ok and result.job_id
     await ctx.image_service.queue.put(result.job_id)
     job_id = await asyncio.wait_for(ctx.image_service.queue.get(), timeout=5)
@@ -92,7 +92,7 @@ async def test_moderation_blocks_minor_image_request(ctx: AppContext, dp, bot) -
 async def test_comfyui_unavailable_friendly_error(ctx: AppContext, fake_image_provider: FakeImageProvider, bot) -> None:
     await onboard(ctx, 8006)
     fake_image_provider.fail_with = ImageProviderUnavailable("ComfyUI не отвечает: 127.0.0.1:8188")
-    result = await _submit_photo(ctx, 8006, "Лея на пляже")
+    result = await _submit_photo(ctx, 8006, "Лилит на пляже")
     assert result.ok and result.job_id
     await ctx.image_service.run_job(result.job_id, bot)
     error_text = " ".join(bot.texts())
@@ -125,7 +125,7 @@ async def test_photo_via_state_flow(ctx: AppContext, dp, bot) -> None:
     await dp.feed_update(bot, make_update_message(8008, user_a, "/photo"))
     assert any("Что нарисовать" in t for t in bot.texts())
     # пользователь отправляет описание (StateFilter PhotoStates.prompt)
-    await dp.feed_update(bot, make_update_message(8008, user_a, "Лея на балконе с кофе"))
+    await dp.feed_update(bot, make_update_message(8008, user_a, "Лилит на балконе с кофе"))
     assert "создаётся" in bot.last_text()
     async with ctx.db.session() as session:
         jobs = await JobRepository(session).queued_jobs()
@@ -145,7 +145,7 @@ async def test_nsfw_checkpoint_auto_switch() -> None:
 
     provider = ComfyUIProvider(
         "http://127.0.0.1:8188",
-        Path("workflows/comfyui_leya_sd15.json"),
+        Path("workflows/comfyui_lilith_sd15.json"),
         checkpoint="sfw_model.safetensors",
         nsfw_checkpoint="nsfw_model.safetensors",
         nsfw_lora="nsfw_lora.safetensors",
@@ -237,7 +237,7 @@ async def test_checkpoint_auto_resolve_missing() -> None:
 
     provider = ComfyUIProvider(
         "http://127.0.0.1:8188",
-        Path("workflows/comfyui_leya_sd15.json"),
+        Path("workflows/comfyui_lilith_sd15.json"),
         checkpoint="dreamshaper_8.safetensors",
     )
     # Имитируем ответ ComfyUI: в системе есть только majicmixRealistic_v7
@@ -261,7 +261,7 @@ async def test_checkpoint_keeps_existing() -> None:
 
     provider = ComfyUIProvider(
         "http://127.0.0.1:8188",
-        Path("workflows/comfyui_leya_sd15.json"),
+        Path("workflows/comfyui_lilith_sd15.json"),
         checkpoint="majicmixRealistic_v7.safetensors",
     )
     provider._available_checkpoints = ["majicmixRealistic_v7.safetensors"]

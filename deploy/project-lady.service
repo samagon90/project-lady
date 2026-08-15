@@ -16,7 +16,7 @@
 #   5. Логи: journalctl -u project-lady -f
 
 [Unit]
-Description=project-lady — Telegram-бот «Лея» (ИИ-компаньон)
+Description=project-lady — Telegram-бот «Лилит» (ИИ-компаньон)
 After=network-online.target
 Wants=network-online.target
 

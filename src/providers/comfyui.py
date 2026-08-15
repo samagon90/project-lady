@@ -2,7 +2,7 @@
 
 Workflow загружается из JSON-файла проекта. Значения (промпты, seed,
 размер, шаги, cfg, checkpoint, LoRA) подставляются в узлы по названию
-(title узла в ComfyUI) — см. workflows/comfyui_leya_sd15.json.
+(title узла в ComfyUI) — см. workflows/comfyui_lilith_sd15.json.
 """
 
 from __future__ import annotations
@@ -108,7 +108,7 @@ class ComfyUIProvider:
             latent["inputs"]["width"] = request.width
             latent["inputs"]["height"] = request.height
         if save is not None:
-            save["inputs"]["filename_prefix"] = f"leya/{safe_filename('img', '')[:-1]}"
+            save["inputs"]["filename_prefix"] = f"lilith/{safe_filename('img', '')[:-1]}"
         # NSFW-запросы (18+, вымышленный персонаж) рисуются отдельной
         # моделью, если она задана через COMFYUI_NSFW_CHECKPOINT/LORA.
         if request.nsfw:

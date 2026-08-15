@@ -54,7 +54,7 @@ class FakeLLM:
         self.default_reply = default_reply
         self.extraction_facts = extraction_facts or []
         self.image_prompt = image_prompt or {
-            "prompt": "Leia in a park, digital art",
+            "prompt": "Lilith in a park, digital art",
             "negative_prompt": "worst quality",
             "width": 512,
             "height": 768,
@@ -199,7 +199,7 @@ class FakeBot:
         return True
 
     async def get_me(self) -> TgUser:
-        return TgUser(id=1, is_bot=True, first_name="Leia Bot")
+        return TgUser(id=1, is_bot=True, first_name="Lilith Bot")
 
     def texts(self) -> list[str]:
         return [item[2]["text"] for item in self.sent if item[0] == "message"]
@@ -273,7 +273,7 @@ def settings(tmp_path: Path) -> Settings:
         temp_dir=data_dir / "tmp",
         log_file=None,
         piper_voice_model=Path("/nonexistent/voice.onnx"),
-        comfyui_workflow_path=Path("workflows/comfyui_leya_sd15.json"),
+        comfyui_workflow_path=Path("workflows/comfyui_lilith_sd15.json"),
         rate_limit_messages_per_minute=100,
         memory_extract_every_n_messages=1,
         audit_enabled=True,

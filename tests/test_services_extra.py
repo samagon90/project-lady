@@ -41,7 +41,7 @@ async def test_judge_falls_back_to_blocklist_when_llm_down(ctx: AppContext, fake
     decision = await ctx.moderation.judge_image_request("девочка 14 лет в школьной форме")
     assert decision.blocked
     # Обычный запрос не блокируется
-    decision2 = await ctx.moderation.judge_image_request("Лея на пляже, закат")
+    decision2 = await ctx.moderation.judge_image_request("Лилит на пляже, закат")
     assert not decision2.blocked
 
 
