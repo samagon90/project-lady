@@ -130,11 +130,12 @@ class MiniAppServer:
             "neutral", "flirt", "passion", "playful", "tender", "serious",
             "happy", "sad", "angry", "surprised", "shy", "proud", "jealous",
             "bored", "excited", "sleepy", "crying", "scared",
+            "disgust", "contempt", "relief", "thinking", "confused",
         }
         if emotion not in allowed:
             emotion = "neutral"
         # Запасные: если файла эмоции нет — берём близкую
-        fallback_map = {"crying": "sad", "scared": "surprised"}
+        fallback_map = {}
         from pathlib import Path
 
         stage = int(request.query.get("stage", "1") or "1")
@@ -348,7 +349,17 @@ def _detect_emotion_and_stage(text: str) -> tuple[str, int]:
     import re as _re
 
     t = text.lower()
-    if _re.search(r'плач|груст|печал|обид|тоск|разбит|одинок', t):
+    if _re.search(r'фу|отврат|гадость|противн|мерзост', t):
+        emotion = "disgust"
+    elif _re.search(r'презр|высокомер|снисход|фырк', t):
+        emotion = "contempt"
+    elif _re.search(r'облегч|фух|слава богу|наконец-то спокойно|выдох', t):
+        emotion = "relief"
+    elif _re.search(r'дума|размышл|интересн|хм|подумать|сообража', t):
+        emotion = "thinking"
+    elif _re.search(r'не понял|не понимаю|запута|странн|что происходит|объясни', t):
+        emotion = "confused"
+    elif _re.search(r'плач|груст|печал|обид|тоск|разбит|одинок', t):
         emotion = "crying"
     elif _re.search(r'боюсь|страш|испуг|жутк|кошмар|опасн', t):
         emotion = "scared"

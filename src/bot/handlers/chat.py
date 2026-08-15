@@ -145,6 +145,11 @@ async def on_text(message: Message, bot: Bot, app_ctx: AppContext, user: DbUser 
             (re.compile(r"скуч|устал|нудно|надоел", re.I), "bored"),
             (re.compile(r"сонн|спат|ночь|спать", re.I), "sleepy"),
             (re.compile(r"восторг|вау|обалдет|невероят|офигеть", re.I), "excited"),
+            (re.compile(r"брезгл|отврат|противн|гадость|фу", re.I), "disgust"),
+            (re.compile(r"презр|высокомер|снисход", re.I), "contempt"),
+            (re.compile(r"облегч|фух|выдох|спокойн", re.I), "relief"),
+            (re.compile(r"задумч|дума|размышл|хм", re.I), "thinking"),
+            (re.compile(r"растер|не понима|запута|странн|объясни", re.I), "confused"),
             (re.compile(r"смущ|стесн|красне|неловк", re.I), "shy"),
             (re.compile(r"удив|неожидан|ничего себе", re.I), "surprised"),
             (re.compile(r"рад|счаст|улыб|отлично|прекрасн|клёво|здорово", re.I), "happy"),
@@ -165,7 +170,8 @@ async def on_text(message: Message, bot: Bot, app_ctx: AppContext, user: DbUser 
             emotion = random.choice(
                 ["neutral", "flirt", "passion", "playful", "tender", "serious",
                  "happy", "sad", "angry", "surprised", "shy", "proud", "jealous",
-                 "bored", "excited", "sleepy", "crying", "scared"]
+                 "bored", "excited", "sleepy", "crying", "scared",
+                 "disgust", "contempt", "relief", "thinking", "confused"]
             )
 
         avatar = Path("assets/emotions") / f"lilith_{emotion}{'_anime' if style == 'anime' else ''}.png"
@@ -183,6 +189,8 @@ async def on_text(message: Message, bot: Bot, app_ctx: AppContext, user: DbUser 
             "surprised": "удивлённая 😲", "shy": "смущённая 😳", "proud": "гордая 😎",
             "jealous": "ревнивая 😒", "bored": "скучающая 🥱", "excited": "восторженная 🤩",
             "sleepy": "сонная 😴", "crying": "плачущая 😭", "scared": "испуганная 😨",
+            "disgust": "брезгливая 🤢", "contempt": "презрительная 🙄", "relief": "облегчённая 😮‍💨",
+            "thinking": "задумчивая 🤔", "confused": "растерянная 😕",
         }
         if avatar_path.exists():
             await bot.send_photo(
@@ -295,6 +303,11 @@ def _detect_reply_emotion(text: str) -> str:
     """Определяет эмоцию Лилит по тексту её ответа."""
     t = text.lower()
     pairs = [
+        (r"облегч|фух|слава богу|выдох", "relief"),
+        (r"отврат|гадость|противн|мерзост|фу[ ,.!]|фу$|фу-фу", "disgust"),
+        (r"презр|высокомер|снисход|фырк|свысока|пф[ ,.!]|пф$", "contempt"),
+        (r"дума|размышл|интересн|хм|подумать", "thinking"),
+        (r"не понял|не понимаю|запута|странн|объясни", "confused"),
         (r"плач|груст|печал|обид|тоск|одинок|жаль|прости", "crying"),
         (r"боюсь|страш|испуг|жутк|кошмар|опасн", "scared"),
         (r"зл|бес(ишь|ит|ить|у|ят)|ненавиж|разозл|ярост|недовольн", "angry"),

@@ -26,6 +26,11 @@
   // ---- Определение эмоции по тексту (для аватара)
   function detectEmotion(text) {
     const t = text.toLowerCase();
+    if (/(фу|отврат|гадость|противн|мерзост)/.test(t)) return "disgust";
+    if (/(презр|высокомер|снисход|фырк)/.test(t)) return "contempt";
+    if (/(облегч|фух|слава богу|выдох)/.test(t)) return "relief";
+    if (/(дума|размышл|интересн|хм|подумать)/.test(t)) return "thinking";
+    if (/(не понял|не понимаю|запута|странн|объясни)/.test(t)) return "confused";
     if (/(плач|груст|печал|обид|тоск|одинок|разбит)/.test(t)) return "crying";
     if (/(боюсь|страш|испуг|жутк|кошмар)/.test(t)) return "scared";
     if (/(зл|бешу|ненавиж|разозл|ярост)/.test(t)) return "angry";
@@ -57,7 +62,8 @@
     const labels = {
       neutral: "😌", flirt: "😏", passion: "🔥", playful: "😜", tender: "💗", serious: "😐",
       happy: "😊", sad: "😢", angry: "😠", surprised: "😲", shy: "😳", proud: "😎",
-      jealous: "😒", bored: "🥱", excited: "🤩", sleepy: "😴", crying: "😭", scared: "😨"
+      jealous: "😒", bored: "🥱", excited: "🤩", sleepy: "😴", crying: "😭", scared: "😨",
+      disgust: "🤢", contempt: "🙄", relief: "😮‍💨", thinking: "🤔", confused: "😕"
     };
     el("emotion-tag").textContent = labels[currentEmotion] || "😌";
     // индикатор раскованности

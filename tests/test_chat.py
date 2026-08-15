@@ -356,3 +356,14 @@ async def test_reply_masculine_auto_fix(ctx: AppContext, dp, bot, fake_llm) -> N
     caption = photos[-1][2].get("caption", "")
     assert "пришла" in caption
     assert "пришёл" not in caption
+
+
+async def test_reply_emotion_new() -> None:
+    """Детектор эмоций ответа распознаёт новые эмоции."""
+    from src.bot.handlers.chat import _detect_reply_emotion
+
+    assert _detect_reply_emotion("Фу, какая гадость") == "disgust"
+    assert _detect_reply_emotion("Хм, дай подумать...") == "thinking"
+    assert _detect_reply_emotion("Я не понимаю, что происходит") == "confused"
+    assert _detect_reply_emotion("Фух, какое облегчение") == "relief"
+    assert _detect_reply_emotion("Пф, смотреть на тебя свысока") == "contempt"
