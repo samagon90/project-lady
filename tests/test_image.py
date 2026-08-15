@@ -106,16 +106,28 @@ async def test_comfyui_unavailable_friendly_error(ctx: AppContext, fake_image_pr
         assert job.error_code == "image_provider_unavailable"
 
 
-async def test_photo_rate_limit(ctx: AppContext, bot) -> None:
+async def test_photo_rate_limit_zero_disabled(ctx: AppContext, bot) -> None:
+    """Лимит 0 = без ограничения: две картинки подряд создаются."""
+    ctx.settings.image_photo_rate_limit_minutes = 0
     await onboard(ctx, 8007)
     result1 = await _submit_photo(ctx, 8007, "первая картинка")
     assert result1.ok
     result2 = await _submit_photo(ctx, 8007, "вторая картинка")
-    assert not result2.ok
-    assert result2.refusal_code == "rate_limited"
+    assert result2.ok, "при лимите 0 вторая картинка не должна блокироваться"
     async with ctx.db.session() as session:
         jobs = await JobRepository(session).queued_jobs()
-        assert len(jobs) == 1
+        assert len(jobs) == 2
+
+
+async def test_photo_rate_limit_positive(ctx: AppContext, bot) -> None:
+    """Лимит > 0 блокирует вторую картинку в окне."""
+    ctx.settings.image_photo_rate_limit_minutes = 5
+    await onboard(ctx, 8020)
+    result1 = await _submit_photo(ctx, 8020, "первая картинка")
+    assert result1.ok
+    result2 = await _submit_photo(ctx, 8020, "вторая картинка")
+    assert not result2.ok
+    assert result2.refusal_code == "rate_limited"
 
 
 async def test_photo_via_state_flow(ctx: AppContext, dp, bot) -> None:

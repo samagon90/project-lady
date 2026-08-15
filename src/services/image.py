@@ -129,20 +129,21 @@ class ImageService:
                 ),
             )
 
-        # 5. Rate limit: не чаще одного /photo в N минут
-        async with self.db.session() as session:
-            last = await JobRepository(session).last_job_created_at(user.id)
-            if last is not None:
-                window = timedelta(minutes=self.settings.image_photo_rate_limit_minutes)
-                if (utcnow() - last) < window:
-                    return SubmitResult(
-                        ok=False,
-                        refusal_code="rate_limited",
-                        refusal_text=(
-                            "Не так быстро 🙂 Подожди немного между запросами картинок "
-                            f"(лимит — одна картинка в {self.settings.image_photo_rate_limit_minutes} минут)."
-                        ),
-                    )
+        # 5. Rate limit: не чаще одного /photo в N минут (0 = без ограничения)
+        if self.settings.image_photo_rate_limit_minutes > 0:
+            async with self.db.session() as session:
+                last = await JobRepository(session).last_job_created_at(user.id)
+                if last is not None:
+                    window = timedelta(minutes=self.settings.image_photo_rate_limit_minutes)
+                    if (utcnow() - last) < window:
+                        return SubmitResult(
+                            ok=False,
+                            refusal_code="rate_limited",
+                            refusal_text=(
+                                "Не так быстро 🙂 Подожди немного между запросами картинок "
+                                f"(лимит — одна картинка в {self.settings.image_photo_rate_limit_minutes} минут)."
+                            ),
+                        )
 
         # 6. Создаём задачу и ставим в очередь
         async with self.db.session() as session:
