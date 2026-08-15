@@ -45,8 +45,9 @@ _HARD_RULES: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"зоофил|скотолож|bestiality|секс\s*с\s+животн", re.I), "animal"),
     (re.compile(r"педофил|педофили", re.I), "minor"),
     (re.compile(r"\bloli\b|\bshota\b|лоли", re.I), "minor"),
-    (re.compile(r"школьниц|школьник|schoolgirl|schoolboy", re.I), "minor"),
+    (re.compile(r"школьниц|школьник|школьницу", re.I), "minor"),
     (re.compile(r"несовершеннолетн|малолетн|underage|jailbait", re.I), "minor"),
+    (re.compile(r"(девочк|мальчик|девчонк|пацан)[а-яё]*\s*\d{1,2}\b", re.I), "minor"),
     (re.compile(r"дипфейк|deepfake", re.I), "deepfake"),
     (re.compile(r"торговл[а-я]*\s+людьми|трафик\s+людей|sex\s+trafficking|эксплуатац", re.I), "exploitation"),
     (re.compile(r"клонир(овани[ея]|овать)?\s+(чуж|голос)|voice\s+clone", re.I), "voice_clone"),
@@ -55,7 +56,14 @@ _HARD_RULES: list[tuple[re.Pattern[str], str]] = [
 
 # Мягкие правила: блокируются только вместе с сексуальным маркером
 _SOFT_RULES: list[tuple[re.Pattern[str], str]] = [
-    (re.compile(r"реб[её]нк|ребён|child(ren)?|\bkid(s)?\b|детск|детей|детям", re.I), "minor"),
+    (
+        re.compile(
+            r"реб[её]нк|ребён|child(ren)?|\bkid(s)?\b|детск|детей|детям|"
+            r"девочк|девчонк|мальчик|школьн(ой|ую|ая|ые|ого|ому|ицу|форме)",
+            re.I,
+        ),
+        "minor",
+    ),
     (re.compile(r"молод(еньк|ую|ую|ой|ая|ые)?|young|teen|подростк|юн(ый|ая|ые|ых)", re.I), "minor"),
     (re.compile(r"\b(12|13|14|15|16|17)\b", re.I), "minor_age"),
     (re.compile(r"дочь|сын|сестра|брат|мать|отец|мама|папа", re.I), "incest"),
@@ -112,6 +120,12 @@ REFUSAL_TEXTS: dict[str, str] = {
     "exploitation": "Это недопустимо. Могу просто побыть рядом и поболтать?",
     "unknown": "Извини, но эта тема вне моих границ. Давай поговорим о чём-то другом?",
 }
+
+
+
+def is_adult_request(text: str) -> bool:
+    """Есть ли в тексте явный взрослый/эротический контекст."""
+    return bool(_SEXUAL_MARKERS.search(text))
 
 
 @dataclass

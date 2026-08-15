@@ -209,7 +209,9 @@ def build_app_context(
     moderation = ModerationService(database, llm_provider, prompts)
     consent = ConsentService(database, audit)
     memory = MemoryService(database, llm_provider, embeddings, settings, prompts)
-    chat = ChatService(database, llm_provider, memory, moderation, audit, settings, prompts)
+    chat = ChatService(
+        database, llm_provider, memory, moderation, consent, audit, settings, prompts
+    )
     image_service = ImageService(database, llm_provider, image, moderation, consent, storage, audit, settings, prompts)
     tts_service = TTSService(tts, settings, storage)
 

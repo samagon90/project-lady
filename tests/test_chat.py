@@ -132,3 +132,46 @@ async def test_cjk_garbage_fallback_message(ctx: AppContext, dp, bot, fake_llm) 
     await dp.feed_update(bot, make_update_message(9992, user_a, "привет"))
     text = bot.last_text()
     assert "LLM_MODEL" in text and "русск" in text
+
+
+async def test_moderation_blocks_minor_variants(ctx: AppContext) -> None:
+    """Модерация ловит несовершеннолетних в разных формулировках."""
+    cases = [
+        "девочка 14 лет в школьной форме",
+        "мальчик 12 лет",
+        "девчонка 16",
+        "пацан 15",
+        "forced sex with a girl",
+        "секс с животными",
+        "торговля людьми",
+        "клонировать голос",
+        "раздеть по фото",
+    ]
+    for text in cases:
+        d = ctx.moderation.check_text_blocklist(text)
+        assert d.blocked, f"должно блокироваться: {text}"
+    # Нейтральные и взрослые — не блокируются
+    for text in [
+        "моя девочка, как дела?",
+        "расскажи про школьные годы",
+        "сделай мне минет",
+        "нарисуй сексуальную азиатку",
+        "пришли мне голую фотку",
+    ]:
+        d = ctx.moderation.check_text_blocklist(text)
+        assert not d.blocked, f"не должно блокироваться: {text}"
+
+
+async def test_auto_nsfw_reply_with_consent(ctx: AppContext, dp, bot, fake_llm) -> None:
+    """Если согласие есть и запрос взрослый — ответ идёт в NSFW-стиле (mode=3)."""
+    fake_llm.default_reply = "Ох, как же я тебя хочу…"
+    from tests.conftest import make_update_message, onboard, tg_user
+
+    await onboard(ctx, 9993, nsfw=True)  # согласие есть, режим по умолчанию 0
+    user_a = tg_user(9993, "NsfwUser")
+    await dp.feed_update(bot, make_update_message(9993, user_a, "трахни меня"))
+    # LLM получил системный промпт с NSFW-инструкцией (mode=3)
+    last_call = fake_llm.calls[-1]
+    system = last_call[0]["content"]
+    assert "NSFW-режим" in system or "nsfw" in system.lower()
+    assert "сексуальная игривая госпожа" in system

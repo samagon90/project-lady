@@ -21,8 +21,9 @@ from src.database.repositories import (
 from src.prompts import PromptLibrary
 from src.providers.base import LLMProvider, LLMUnavailable
 from src.services.audit import AuditService
+from src.services.consent import ConsentService
 from src.services.memory import MemoryService
-from src.services.moderation import ModerationService
+from src.services.moderation import ModerationService, is_adult_request
 from src.utils import contains_cjk, truncate
 
 logger = logging.getLogger(__name__)
@@ -42,6 +43,7 @@ class ChatService:
         llm: LLMProvider,
         memory: MemoryService,
         moderation: ModerationService,
+        consent: ConsentService,
         audit: AuditService,
         settings: Settings,
         prompts: PromptLibrary,
@@ -50,6 +52,7 @@ class ChatService:
         self.llm = llm
         self.memory = memory
         self.moderation = moderation
+        self.consent = consent
         self.audit = audit
         self.settings = settings
         self.prompts = prompts
@@ -81,6 +84,11 @@ class ChatService:
             await messages.add(conversation, "user", text, tg_message_id)
 
         ctx = await self.memory.build_context(user, text)
+        # Авто-NSFW: если у пользователя есть согласие и запрос явно взрослый —
+        # отвечаем в NSFW-стиле для этого ответа (режим в настройках не меняется).
+        # Это снимает лишний барьер для согласившихся пользователей.
+        if ctx.mode != 3 and is_adult_request(text) and await self.consent.has_nsfw_consent(user):
+            ctx.mode = 3
         system = self.prompts.system_prompt(user, ctx)
         messages_for_llm: list[dict[str, str]] = [{"role": "system", "content": system}]
         if ctx.block_text:
