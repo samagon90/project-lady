@@ -40,6 +40,7 @@ class ComfyUIProvider:
         lora: str = "",
         nsfw_checkpoint: str = "",
         nsfw_lora: str = "",
+        reference_image: Path | None = None,
         timeout_seconds: float = 600.0,
         poll_interval_seconds: float = 2.0,
         client: httpx.AsyncClient | None = None,
@@ -50,6 +51,7 @@ class ComfyUIProvider:
         self.lora = lora
         self.nsfw_checkpoint = nsfw_checkpoint
         self.nsfw_lora = nsfw_lora
+        self.reference_image = reference_image
         self.timeout = timeout_seconds
         self.poll_interval = poll_interval_seconds
         self._client = client
@@ -121,6 +123,10 @@ class ComfyUIProvider:
             checkpoint_node["inputs"]["ckpt_name"] = self._resolve_checkpoint(ckpt, workflow)
         if lora_node is not None and lora:
             lora_node["inputs"]["lora_name"] = lora
+        # Референс-изображение (наш аватар Лилит) для IPAdapter
+        ref_node = self._find_node(workflow, ("Load Reference (Lilith avatar)",), ("LoadImage",))
+        if ref_node is not None and self.reference_image is not None:
+            ref_node["inputs"]["image"] = self.reference_image.name
 
     def _resolve_checkpoint(self, requested: str, workflow: dict) -> str:
         """Возвращает имя checkpoint для ComfyUI.

@@ -1,0 +1,94 @@
+{
+  "1": {
+    "class_type": "CheckpointLoaderSimple",
+    "inputs": {
+      "ckpt_name": "UnstableDiffusion_ema_pruned.safetensors"
+    },
+    "_meta": { "title": "Load Checkpoint" }
+  },
+  "2": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "text": "",
+      "clip": ["1", 1]
+    },
+    "_meta": { "title": "Positive Prompt" }
+  },
+  "3": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "text": "",
+      "clip": ["1", 1]
+    },
+    "_meta": { "title": "Negative Prompt" }
+  },
+  "4": {
+    "class_type": "EmptyLatentImage",
+    "inputs": {
+      "width": 512,
+      "height": 768,
+      "batch_size": 1
+    },
+    "_meta": { "title": "Empty Latent Image" }
+  },
+  "5": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "lilith_ref.png",
+      "upload": "image"
+    },
+    "_meta": { "title": "Load Reference (Lilith avatar)" }
+  },
+  "6": {
+    "class_type": "IPAdapterUnifiedLoader",
+    "inputs": {
+      "preset": "PLUS (high strength)",
+      "model": ["1", 0]
+    },
+    "_meta": { "title": "IPAdapter Unified Loader" }
+  },
+  "7": {
+    "class_type": "IPAdapter",
+    "inputs": {
+      "weight": 0.8,
+      "start_at": 0.0,
+      "end_at": 1.0,
+      "model": ["6", 0],
+      "ipadapter": ["6", 1],
+      "image": ["5", 0]
+    },
+    "_meta": { "title": "IPAdapter Apply" }
+  },
+  "8": {
+    "class_type": "KSampler",
+    "inputs": {
+      "seed": 42,
+      "steps": 28,
+      "cfg": 7.0,
+      "sampler_name": "euler",
+      "scheduler": "normal",
+      "denoise": 1.0,
+      "model": ["7", 0],
+      "positive": ["2", 0],
+      "negative": ["3", 0],
+      "latent_image": ["4", 0]
+    },
+    "_meta": { "title": "KSampler" }
+  },
+  "9": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": ["8", 0],
+      "vae": ["1", 2]
+    },
+    "_meta": { "title": "VAE Decode" }
+  },
+  "10": {
+    "class_type": "SaveImage",
+    "inputs": {
+      "filename_prefix": "lilith",
+      "images": ["9", 0]
+    },
+    "_meta": { "title": "Save Image" }
+  }
+}

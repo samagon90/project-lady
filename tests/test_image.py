@@ -364,3 +364,31 @@ async def test_fallback_prompt_asian_only_when_requested(ctx: AppContext, fake_l
     await onboard(ctx, 8119, nsfw=True)
     result = await ctx.image_service._build_image_prompt("нарисуй сексуальную азиатку")
     assert "asian" in result.prompt.lower()
+
+
+async def test_reference_image_injected_into_workflow() -> None:
+    """Аватар Лилит подставляется в LoadImage workflow IPAdapter."""
+    from pathlib import Path
+
+    from src.providers.base import ImageRequest
+    from src.providers.comfyui import ComfyUIProvider
+
+    provider = ComfyUIProvider(
+        "http://127.0.0.1:8188",
+        Path("workflows/comfyui_lilith_ipadapter.json"),
+        checkpoint="UnstableDiffusion_ema_pruned.safetensors",
+        reference_image=Path("assets/lilith_avatar.png"),
+    )
+    workflow = provider._load_workflow()
+    provider._inject(workflow, ImageRequest(prompt="p", nsfw=True))
+    # узел Load Reference должен получить имя файла
+    found = False
+    for node in workflow.values():
+        if (node.get("_meta") or {}).get("title") == "Load Reference (Lilith avatar)":
+            assert node["inputs"]["image"] == "lilith_avatar.png"
+            found = True
+    assert found, "узел Load Reference не найден"
+    # IPAdapter-узлы присутствуют
+    titles = [(node.get("_meta") or {}).get("title") for node in workflow.values()]
+    assert "IPAdapter Unified Loader" in titles
+    assert "IPAdapter Apply" in titles

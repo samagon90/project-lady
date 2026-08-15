@@ -186,6 +186,11 @@ def build_app_context(
         model=settings.embedding_model,
     )
 
+    ref_image = None
+    if settings.comfyui_reference_image is not None:
+        ref_path = settings.resolve_path(settings.comfyui_reference_image)
+        if ref_path.exists():
+            ref_image = ref_path
     image = image_provider or ComfyUIProvider(
         settings.comfyui_base_url,
         settings.resolved_workflow_path,
@@ -193,6 +198,7 @@ def build_app_context(
         lora=settings.comfyui_lora,
         nsfw_checkpoint=settings.comfyui_nsfw_checkpoint,
         nsfw_lora=settings.comfyui_nsfw_lora,
+        reference_image=ref_image,
         timeout_seconds=settings.comfyui_timeout_seconds,
         poll_interval_seconds=settings.comfyui_poll_interval_seconds,
     )
