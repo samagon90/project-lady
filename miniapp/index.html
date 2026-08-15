@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Лилит</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<header>
+  <h1>🖤 Лилит</h1>
+  <span id="mode-label" class="badge"></span>
+</header>
+
+<nav>
+  <button class="tab active" data-tab="profile">Профиль</button>
+  <button class="tab" data-tab="settings">Настройки</button>
+  <button class="tab" data-tab="gallery">Галерея</button>
+  <button class="tab" data-tab="memory">Память</button>
+</nav>
+
+<main>
+  <section id="tab-profile" class="panel active">
+    <h2>👤 Профиль</h2>
+    <div class="row"><span>Имя</span><b id="p-name">—</b></div>
+    <div class="row"><span>Режим</span><b id="p-mode">—</b></div>
+    <div class="row"><span>Голос</span><b id="p-voice">—</b></div>
+    <div class="row"><span>Стиль картинок</span><b id="p-style">—</b></div>
+    <div class="row"><span>Наряд</span><b id="p-outfit">—</b></div>
+    <div class="row"><span>Манера речи</span><b id="p-speech">—</b></div>
+    <div class="row"><span>NSFW-согласие</span><b id="p-nsfw">—</b></div>
+  </section>
+
+  <section id="tab-settings" class="panel">
+    <h2>⚙️ Настройки</h2>
+    <label>Имя
+      <input id="s-name" placeholder="как тебя называть">
+    </label>
+    <label>Режим
+      <select id="s-mode">
+        <option value="0">🤝 Дружеский</option>
+        <option value="1">😉 Лёгкий флирт</option>
+        <option value="2">💞 Романтический</option>
+        <option value="3">🔞 NSFW</option>
+      </select>
+    </label>
+    <label>Стиль картинок
+      <select id="s-style">
+        <option value="realistic">📸 Реалистичный</option>
+        <option value="anime">🖌 Рисованный (аниме)</option>
+      </select>
+    </label>
+    <label>Голосовые ответы
+      <select id="s-voice">
+        <option value="true">🎙 Включены</option>
+        <option value="false">🔇 Выключены</option>
+      </select>
+    </label>
+    <label>Наряд Лилит (например: «чёрное платье, чулки»)
+      <input id="s-outfit" placeholder="костюм горничной, чулки">
+    </label>
+    <label>Манера речи (например: «нежно и шёпотом»)
+      <input id="s-speech" placeholder="страстно и дерзко">
+    </label>
+    <button id="save" class="primary">💾 Сохранить</button>
+    <div id="save-msg"></div>
+  </section>
+
+  <section id="tab-gallery" class="panel">
+    <h2>🖼 Галерея</h2>
+    <div id="gallery" class="grid"><p class="hint">Загрузка…</p></div>
+  </section>
+
+  <section id="tab-memory" class="panel">
+    <h2>🧠 Память</h2>
+    <div id="memory"><p class="hint">Загрузка…</p></div>
+  </section>
+</main>
+
+<script src="/app.js"></script>
+</body>
+</html>

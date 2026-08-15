@@ -19,6 +19,7 @@ from src.bot.middlewares import (
     RegistrationMiddleware,
 )
 from src.config import PROJECT_ROOT, Settings
+from src.miniapp_server import MiniAppServer
 from src.utils import ensure_dir
 from src.workers import start_workers, stop_workers
 
@@ -61,6 +62,13 @@ async def _main(settings: Settings) -> None:
     await ctx.db.connect()
     await ctx.warmup()
 
+    # Telegram Mini App (веб-интерфейс профиля/настроек/галереи)
+    miniapp = MiniAppServer(
+        ctx.db, settings.telegram_token,
+        host=settings.miniapp_host, port=settings.miniapp_port,
+    )
+    await miniapp.start()
+
     bot = Bot(settings.telegram_token)
     dp = Dispatcher(storage=MemoryStorage())
     dp["app_ctx"] = ctx
@@ -91,6 +99,7 @@ async def _main(settings: Settings) -> None:
     polling_task.cancel()
     await asyncio.gather(polling_task, return_exceptions=True)
     await stop_workers(worker_tasks)
+    await miniapp.stop()
     await ctx.shutdown()
     await bot.session.close()
 

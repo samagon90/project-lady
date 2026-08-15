@@ -443,6 +443,15 @@ class AssetRepository:
         result = await self.session.execute(select(GeneratedAsset.file_path).where(GeneratedAsset.user_id == user_id))
         return [str(path) for path in result.scalars().all()]
 
+    async def list_recent_for_user(self, user_id: int, limit: int = 12) -> list[GeneratedAsset]:
+        result = await self.session.execute(
+            select(GeneratedAsset)
+            .where(GeneratedAsset.user_id == user_id)
+            .order_by(GeneratedAsset.id.desc())
+            .limit(limit)
+        )
+        return list(result.scalars().all())
+
     async def expired(self, now: datetime, limit: int = 100) -> list[GeneratedAsset]:
         result = await self.session.execute(
             select(GeneratedAsset)

@@ -1,0 +1,266 @@
+"""Telegram Mini App для бота «Лилит».
+
+Веб-интерфейс внутри Telegram: профиль, настройки (наряд, манера речи,
+стиль картинок, режим, голос), галерея сгенерированных фото, память.
+
+Безопасность: каждый запрос к API проверяется через initData Telegram
+(HMAC-SHA256 от токена бота) — посторонние не могут читать/менять данные.
+"""
+from __future__ import annotations
+
+import hashlib
+import hmac
+import json
+import logging
+import urllib.parse
+from pathlib import Path
+
+from aiohttp import web
+
+from src.database.base import Database
+from src.database.repositories import (
+    AssetRepository,
+    MemoryRepository,
+    PreferencesRepository,
+    UserRepository,
+)
+
+logger = logging.getLogger(__name__)
+
+MINIAPP_DIR = Path(__file__).resolve().parents[1] / "miniapp"
+_AUTH_SECRET_CACHE: dict[str, bytes] = {}
+
+
+def _secret_key(bot_token: str) -> bytes:
+    if bot_token not in _AUTH_SECRET_CACHE:
+        _AUTH_SECRET_CACHE[bot_token] = hmac.new(
+            b"WebAppData", bot_token.encode(), hashlib.sha256
+        ).digest()
+    return _AUTH_SECRET_CACHE[bot_token]
+
+
+def validate_init_data(init_data: str, bot_token: str) -> dict | None:
+    """Проверяет initData от Telegram Mini App. Возвращает данные (user и т.п.) или None."""
+    try:
+        parsed = urllib.parse.parse_qs(init_data, keep_blank_values=True)
+    except Exception:  # noqa: BLE001
+        return None
+    if not parsed or "hash" not in parsed:
+        return None
+    received_hash = parsed["hash"][0]
+    pairs = sorted(
+        (k, v[0]) for k, v in parsed.items() if k != "hash"
+    )
+    data_check_string = "\n".join(f"{k}={v}" for k, v in pairs)
+    calculated = hmac.new(
+        _secret_key(bot_token), data_check_string.encode(), hashlib.sha256
+    ).hexdigest()
+    if not hmac.compare_digest(calculated, received_hash):
+        return None
+    result: dict = {}
+    for k, v in pairs:
+        try:
+            result[k] = json.loads(v)
+        except (json.JSONDecodeError, ValueError):
+            result[k] = v
+    return result
+
+
+class MiniAppServer:
+    """aiohttp-сервер: статика мини-приложения + JSON API."""
+
+    def __init__(
+        self,
+        db: Database,
+        bot_token: str,
+        *,
+        host: str = "0.0.0.0",
+        port: int = 8001,
+    ) -> None:
+        self.db = db
+        self.bot_token = bot_token
+        self.host = host
+        self.port = port
+        self.runner: web.AppRunner | None = None
+        self.app = web.Application()
+        self.app.router.add_get("/", self._index)
+        self.app.router.add_get("/app.js", self._static_js)
+        self.app.router.add_get("/style.css", self._static_css)
+        self.app.router.add_get("/api/me", self._api_me)
+        self.app.router.add_post("/api/settings", self._api_settings)
+        self.app.router.add_get("/api/gallery", self._api_gallery)
+        self.app.router.add_get("/api/memory", self._api_memory)
+
+    # ------------------------------------------------------------- static
+
+    async def _index(self, request: web.Request) -> web.Response:
+        return web.Response(
+            text=(MINIAPP_DIR / "index.html").read_text(encoding="utf-8"),
+            content_type="text/html; charset=utf-8",
+        )
+
+    async def _static_js(self, request: web.Request) -> web.Response:
+        return web.Response(
+            text=(MINIAPP_DIR / "app.js").read_text(encoding="utf-8"),
+            content_type="application/javascript; charset=utf-8",
+        )
+
+    async def _static_css(self, request: web.Request) -> web.Response:
+        return web.Response(
+            text=(MINIAPP_DIR / "style.css").read_text(encoding="utf-8"),
+            content_type="text/css; charset=utf-8",
+        )
+
+    # ------------------------------------------------------------- auth
+
+    def _user_id(self, request: web.Request) -> int | None:
+        init_data = request.headers.get("x-init-data", "")
+        data = validate_init_data(init_data, self.bot_token)
+        if not data or "user" not in data:
+            return None
+        user = data["user"]
+        if isinstance(user, dict):
+            return int(user.get("id", 0))
+        return None
+
+    # ------------------------------------------------------------- api
+
+    async def _api_me(self, request: web.Request) -> web.Response:
+        uid = self._user_id(request)
+        if uid is None:
+            return web.json_response({"error": "unauthorized"}, status=401)
+        async with self.db.session() as session:
+            user = await UserRepository(session).get_by_telegram_id(uid)
+            if user is None:
+                return web.json_response({"error": "not_registered"}, status=404)
+            prefs = await PreferencesRepository(session).get_or_create(user)
+            consents = await _consent_flags(self.db, user.id)
+        return web.json_response(
+            {
+                "telegram_user_id": uid,
+                "name": prefs.name,
+                "mode": prefs.mode,
+                "voice_enabled": prefs.voice_enabled,
+                "outfit": prefs.outfit,
+                "image_style": prefs.image_style,
+                "speech_style": prefs.speech_style,
+                "interests": prefs.interests,
+                "boundaries": prefs.boundaries,
+                "consent_nsfw": consents[1],
+            }
+        )
+
+    async def _api_settings(self, request: web.Request) -> web.Response:
+        uid = self._user_id(request)
+        if uid is None:
+            return web.json_response({"error": "unauthorized"}, status=401)
+        try:
+            payload = await request.json()
+        except Exception:  # noqa: BLE001
+            return web.json_response({"error": "bad_json"}, status=400)
+        allowed = {
+            "name": (str, 128),
+            "mode": (int, None),
+            "voice_enabled": (bool, None),
+            "outfit": (str, 1000),
+            "image_style": (str, 16),
+            "speech_style": (str, 200),
+            "interests": (str, 1000),
+            "boundaries": (str, 1000),
+        }
+        fields: dict = {}
+        for key, (ctype, maxlen) in allowed.items():
+            if key not in payload:
+                continue
+            value = payload[key]
+            if not isinstance(value, ctype):
+                if key == "mode":
+                    try:
+                        value = int(value)
+                    except (TypeError, ValueError):
+                        continue
+                else:
+                    continue
+            if maxlen and isinstance(value, str):
+                value = value[:maxlen]
+            fields[key] = value
+        if "image_style" in fields and fields["image_style"] not in ("realistic", "anime"):
+            fields.pop("image_style")
+        if "mode" in fields and fields["mode"] not in (0, 1, 2, 3):
+            fields.pop("mode")
+        async with self.db.session() as session:
+            user = await UserRepository(session).get_by_telegram_id(uid)
+            if user is None:
+                return web.json_response({"error": "not_registered"}, status=404)
+            if fields:
+                await PreferencesRepository(session).update_fields(user, **fields)
+        return web.json_response({"ok": True, "updated": list(fields.keys())})
+
+    async def _api_gallery(self, request: web.Request) -> web.Response:
+        uid = self._user_id(request)
+        if uid is None:
+            return web.json_response({"error": "unauthorized"}, status=401)
+        async with self.db.session() as session:
+            user = await UserRepository(session).get_by_telegram_id(uid)
+            if user is None:
+                return web.json_response({"error": "not_registered"}, status=404)
+            assets = await AssetRepository(session).list_recent_for_user(user.id, limit=12)
+        return web.json_response(
+            {
+                "images": [
+                    {
+                        "id": a.id,
+                        "file_path": a.file_path,
+                        "created_at": a.created_at.isoformat() if a.created_at else None,
+                        "type": a.asset_type,
+                    }
+                    for a in assets
+                    if a.asset_type == "image"
+                ]
+            }
+        )
+
+    async def _api_memory(self, request: web.Request) -> web.Response:
+        uid = self._user_id(request)
+        if uid is None:
+            return web.json_response({"error": "unauthorized"}, status=401)
+        async with self.db.session() as session:
+            user = await UserRepository(session).get_by_telegram_id(uid)
+            if user is None:
+                return web.json_response({"error": "not_registered"}, status=404)
+            items = await MemoryRepository(session).list_for_user(user.id, limit=20)
+        return web.json_response(
+            {
+                "items": [
+                    {
+                        "category": i.category,
+                        "fact": i.fact,
+                        "created_at": i.created_at.isoformat() if i.created_at else None,
+                    }
+                    for i in items
+                ]
+            }
+        )
+
+    # ------------------------------------------------------------- lifecycle
+
+    async def start(self) -> None:
+        self.runner = web.AppRunner(self.app)
+        await self.runner.setup()
+        site = web.TCPSite(self.runner, self.host, self.port)
+        await site.start()
+        logger.info("Mini App сервер запущен: http://%s:%s", self.host, self.port)
+
+    async def stop(self) -> None:
+        if self.runner is not None:
+            await self.runner.cleanup()
+            self.runner = None
+
+
+async def _consent_flags(db: Database, user_id: int) -> tuple[bool, bool]:
+    from src.database.repositories import ConsentRepository
+
+    async with db.session() as session:
+        base = await ConsentRepository(session).get_active(user_id, "base")
+        nsfw = await ConsentRepository(session).get_active(user_id, "nsfw")
+    return base is not None, nsfw is not None

@@ -89,6 +89,37 @@ async def cmd_version(message: Message, bot: Bot) -> None:
     )
 
 
+@router.message(Command("app"))
+async def cmd_app(message: Message, bot: Bot, app_ctx: AppContext) -> None:
+    """Открывает Telegram Mini App (профиль, настройки, галерея)."""
+    from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+
+    url = app_ctx.settings.webapp_url
+    if not url:
+        await bot.send_message(
+            chat_id=message.chat.id,
+            text=(
+                "🖤 Мини-приложение пока не настроено. Администратору: укажите "
+                "WEBAPP_URL в .env (публичный HTTPS-адрес) и перезапустите бота."
+            ),
+        )
+        return
+    await bot.send_message(
+        chat_id=message.chat.id,
+        text="🖤 Открой моё мини-приложение: профиль, настройки, галерея и память.",
+        reply_markup=InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="🖤 Открыть приложение Лилит",
+                        web_app=__import__("aiogram.types", fromlist=["WebAppInfo"]).WebAppInfo(url=url),
+                    )
+                ]
+            ]
+        ),
+    )
+
+
 @router.message(Command("cancel"))
 async def cmd_cancel(message: Message, bot: Bot, state: FSMContext) -> None:
     if await state.get_state() is None:

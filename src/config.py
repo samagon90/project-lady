@@ -13,7 +13,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
-APP_VERSION = "0.5.0"
+APP_VERSION = "0.6.0"
 
 
 class Settings(BaseSettings):
@@ -103,6 +103,13 @@ class Settings(BaseSettings):
     proactive_interval_minutes: int = 30
     proactive_min_inactivity_hours: int = 6
     proactive_max_per_day: int = 3
+
+    # --- Telegram Mini App ---
+    miniapp_host: str = "0.0.0.0"
+    miniapp_port: int = 8001
+    # Публичный HTTPS-адрес мини-приложения (например, туннель localtunnel).
+    # Если пусто — кнопка /app не показывается.
+    webapp_url: str = ""
 
     # --- Запуск ---
     polling_timeout_seconds: int = 60
