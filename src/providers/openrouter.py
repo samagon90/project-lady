@@ -111,6 +111,19 @@ class OpenAICompatLLMProvider:
                     await asyncio.sleep(1.5 * (attempt + 1))
         raise LLMUnavailable(f"Облачный LLM недоступен: {self.base_url}") from last_error
 
+    async def embed(self, texts: list[str]) -> list[list[float]]:
+        """Облачный чат-API не умеет embeddings — мягко сообщаем об этом.
+
+        Вызывающий код (EmbeddingsService.embed_one) ловит LLMUnavailable и
+        отключает семантический поиск, не роняя диалог.
+        """
+        if not texts:
+            return []
+        raise LLMUnavailable(
+            "Embeddings недоступны для облачного LLM-провайдера — "
+            "семантическая память работает в упрощённом режиме"
+        )
+
     async def health(self) -> bool:
         if not self.api_key:
             return False

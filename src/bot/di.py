@@ -59,6 +59,16 @@ class AppContext:
 
     async def warmup(self) -> None:
         """Прогрев семантического индекса и проверка доступности моделей."""
+        # Самолечение: если в .env модель не указана или не установлена —
+        # берём любую рабочую модель из Ollama (важно для старых ноутбуков,
+        # где LLM_MODEL не записывается в .env).
+        if isinstance(self.llm, OllamaLLMProvider):
+            old_model = self.llm.model
+            chosen = await self.llm.auto_pick_model(
+                preferred=("huihui_ai/qwen3-abliterated", "qwen2.5", "qwen3", "dolphin")
+            )
+            if chosen != old_model:
+                logger.warning("LLM-модель исправлена автоматически: %s -> %s", old_model, chosen)
         async with self.db.session() as session:
             rows = await _all_embeddings(session)
         self.embeddings.load_all(rows)
@@ -199,6 +209,7 @@ def build_app_context(
         llm_provider = OllamaLLMProvider(
             settings.llm_base_url,
             settings.llm_model,
+            embed_model=settings.embedding_model,
             temperature=settings.llm_temperature,
             timeout_seconds=settings.llm_timeout_seconds,
             retries=settings.llm_retries,

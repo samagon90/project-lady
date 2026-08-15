@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import json
 import sys
 from pathlib import Path
 
@@ -74,12 +73,12 @@ async def generate_batch(count: int, out_dir: Path) -> None:
         ),
         timeout_seconds=settings.comfyui_timeout_seconds,
     )
-    out_dir.mkdir(parents=True, exist_ok=True)
+    out_dir.mkdir(parents=True, exist_ok=True)  # noqa: ASYNC240 — скрипт, не сервер
 
     combos = []
     for pose in POSES:
-        for emotion_name, emotion_desc in EMOTIONS:
-            for outfit_name, outfit_desc in OUTFITS:
+        for emotion_name, _emotion_desc in EMOTIONS:
+            for _outfit_name, outfit_desc in OUTFITS:
                 combos.append((pose, emotion_name, outfit_desc))
     # 100 = первые 100 комбинаций (5*5*4=100 ровно)
     combos = combos[:count]

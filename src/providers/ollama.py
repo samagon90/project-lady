@@ -24,6 +24,7 @@ class OllamaLLMProvider:
         base_url: str,
         model: str,
         *,
+        embed_model: str | None = None,
         temperature: float = 0.8,
         timeout_seconds: float = 120.0,
         retries: int = 2,
@@ -31,6 +32,10 @@ class OllamaLLMProvider:
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.model = model
+        # Отдельная модель для embeddings (например, nomic-embed-text).
+        # Раньше для векторов использовалась чат-модель, а Ollama отвечает
+        # 400 "does not support embeddings" — семантическая память падала.
+        self.embed_model = embed_model or model
         self.temperature = temperature
         self.timeout = timeout_seconds
         self.retries = retries
@@ -96,14 +101,18 @@ class OllamaLLMProvider:
         raise LLMUnavailable(f"Ollama недоступен: {self.base_url}") from last_error
 
     async def embed(self, texts: list[str]) -> list[list[float]]:
-        """Embeddings через /api/embed с fallback на /api/embeddings."""
+        """Embeddings через /api/embed с fallback на /api/embeddings.
+
+        Используется отдельная модель для векторов (embed_model) — чат-модель
+        не умеет embeddings и Ollama вернёт ошибку.
+        """
         if not texts:
             return []
         client = await self._client_instance()
         try:
             response = await client.post(
                 f"{self.base_url}/api/embed",
-                json={"model": self.model, "input": texts},
+                json={"model": self.embed_model, "input": texts},
             )
             if response.status_code == 200:
                 data = response.json()
@@ -115,19 +124,76 @@ class OllamaLLMProvider:
         for text in texts:
             response = await client.post(
                 f"{self.base_url}/api/embeddings",
-                json={"model": self.model, "prompt": text},
+                json={"model": self.embed_model, "prompt": text},
             )
             if response.status_code != 200:
-                raise LLMUnavailable(f"Ollama вернул HTTP {response.status_code} для /api/embeddings")
+                raise LLMUnavailable(
+                    f"Ollama вернул HTTP {response.status_code} для /api/embeddings "
+                    f"(модель '{self.embed_model}'). Проверьте: ollama pull {self.embed_model}"
+                )
             result.append(list(map(float, response.json().get("embedding", []))))
         return result
 
-    async def health(self) -> bool:
+    async def list_models(self) -> list[str]:
+        """Список установленных моделей из /api/tags (пусто, если Ollama выключена)."""
         try:
             client = await self._client_instance()
             response = await client.get(f"{self.base_url}/api/tags", timeout=5.0)
-            return response.status_code == 200
-        except Exception:
+            if response.status_code == 200:
+                data = response.json()
+                return [str(m.get("name", "")) for m in data.get("models", []) if m.get("name")]
+        except Exception:  # noqa: BLE001 — Ollama может быть выключена
+            pass
+        return []
+
+    async def auto_pick_model(self, preferred: tuple[str, ...] = ()) -> str:
+        """Проверяет, что self.model реально установлена в Ollama.
+
+        Если в .env модель не указана (или указана несуществующая) — бот сам
+        выбирает рабочую модель: сначала из preferred, затем любую чат-модель.
+        Возвращает выбранное имя модели (обновляет self.model при замене).
+        """
+        available = await self.list_models()
+        if not available:
+            return self.model
+        if self.model in available:
+            return self.model
+        short = self.model.split(":")[0]
+        if any(m.split(":")[0] == short for m in available):
+            return self.model
+        for pref in preferred:
+            for name in available:
+                if name.startswith(pref):
+                    logger.warning(
+                        "Модель %s не установлена в Ollama — переключаюсь на %s",
+                        self.model,
+                        name,
+                    )
+                    self.model = name
+                    return name
+        for name in available:
+            if "embed" in name.lower():
+                continue
+            logger.warning(
+                "Модель %s не установлена в Ollama — переключаюсь на %s",
+                self.model,
+                name,
+            )
+            self.model = name
+            return name
+        return self.model
+
+    async def health(self) -> bool:
+        """Ollama жива И нужная модель установлена."""
+        try:
+            available = await self.list_models()
+            if not available:
+                return False
+            return any(
+                name == self.model or name.split(":")[0] == self.model.split(":")[0]
+                for name in available
+            )
+        except Exception:  # noqa: BLE001
             return False
 
     def __repr__(self) -> str:  # для логов — без токенов
