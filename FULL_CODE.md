@@ -1,6 +1,8 @@
 # 🤖 project-lady — ПОЛНЫЙ КОД БОТА «ЛИЛИТ»
 
-*Версия: 1.2.0*
+*Версия: 1.5.1*
+
+*Перед доработкой прочитай AI_DEVELOPER.md*
 
 ## Структура проекта
 
@@ -9,7 +11,9 @@
   .dockerignore
   .env.example
   .gitignore
+  AI_DEVELOPER.md
   Dockerfile
+  FULL_CODE.md
   GUIDE_FOR_BEGINNERS.md
   Makefile
   ORACLE_GUIDE.md
@@ -118,28 +122,48 @@
     lilith_avatar_anime.png
     emotions/
       lilith_angry.png
+      lilith_angry_anime.png
       lilith_bored.png
+      lilith_confused.png
+      lilith_contempt.png
+      lilith_crying.png
+      lilith_disgust.png
       lilith_excited.png
       lilith_flirt.png
       lilith_flirt_anime.png
       lilith_happy.png
+      lilith_happy_anime.png
       lilith_jealous.png
       lilith_neutral.png
       lilith_passion.png
       lilith_passion_anime.png
       lilith_playful.png
       lilith_proud.png
+      lilith_relief.png
       lilith_sad.png
+      lilith_sad_anime.png
+      lilith_scared.png
       lilith_serious.png
       lilith_shy.png
       lilith_sleepy.png
       lilith_surprised.png
       lilith_tender.png
+      lilith_thinking.png
       stage/
         lilith_passion_stage1.png
         lilith_passion_stage2.png
         lilith_passion_stage3.png
         lilith_passion_stage4.png
+      lingerie/
+        lilith_angry_lingerie.png
+        lilith_excited_lingerie.png
+        lilith_flirt_lingerie.png
+        lilith_happy_lingerie.png
+        lilith_neutral_lingerie.png
+        lilith_passion_lingerie.png
+        lilith_playful_lingerie.png
+        lilith_sad_lingerie.png
+        lilith_tender_lingerie.png
   miniapp/
     app.js
     index.html
@@ -192,15 +216,13 @@ DATABASE_URL=sqlite+aiosqlite:///./data/bot.db
 # ---------------------------------------------------------------- LLM (Ollama)
 # Адрес локального Ollama
 LLM_BASE_URL=http://127.0.0.1:11434
-# Название модели, например qwen2.5:7b, gemma2:9b, llama3.1:8b, mistral:7b
-# Если модель отвечает слишком скромно/«замкнуто» в NSFW — поставьте версию
-# без цензуры (ВНИМАНИЕ: правильное имя БЕЗ буквы d на конце):
-#   ollama pull dolphin-llama3:8b
-#   LLM_MODEL=dolphin-llama3:8b
-# (или huihui_ai/qwen2.5-abliterate:7b — но она может отвечать иероглифами)
+# Название модели. Рекомендуется Qwen 3 без цензуры (свежая, раскованная):
+#   ollama pull huihui_ai/qwen3-abliterated:14b   (~9 ГБ, лучшая)
+#   ollama pull huihui_ai/qwen3-abliterated:8b    (~5 ГБ, для слабых ПК)
+# Альтернативы: dolphin3:8b (классика), qwen2.5:7b (с цензурой)
 # Если бот отвечает «иероглифами» — модель не установлена или имя написано
 # с ошибкой; выполните: ollama list  (покажет реальные имена)
-LLM_MODEL=qwen2.5:7b
+LLM_MODEL=huihui_ai/qwen3-abliterated:14b
 LLM_TEMPERATURE=0.8
 LLM_MAX_TOKENS=1024
 LLM_TIMEOUT_SECONDS=120
@@ -293,6 +315,9 @@ RETENTION_INTERVAL_MINUTES=60
 LOG_LEVEL=INFO
 # Пустой — только stdout. Файл пишется без содержимого сообщений пользователей.
 LOG_FILE=data/bot.log
+
+# Лилит прикрепляет к каждому ответу аватар с эмоцией (true/false)
+CHAT_AVATAR_ENABLED=true
 
 # ---------------------------------------------------------------- Проактивные сообщения
 # Лилит сама пишет пользователю, который давно не заходил
@@ -1099,11 +1124,11 @@ TELEGRAM_TOKEN=123456789:AA...
 # Установка Ollama (Linux):
 curl -fsSL https://ollama.com/install.sh | sh
 
-# Модель для общения (любая; примеры: qwen2.5:7b, gemma2:9b, llama3.1:8b, mistral:7b):
-ollama pull qwen2.5:7b
-# Для максимально раскованного NSFW (без встроенной цензуры):
-#   ollama pull dolphin-llama3:8b
-#   затем в .env: LLM_MODEL=dolphin-llama3:8b
+# Модель для общения (рекомендуется Qwen 3 без цензуры):
+ollama pull huihui_ai/qwen3-abliterated:14b
+# Для слабых ПК — 8b:
+#   ollama pull huihui_ai/qwen3-abliterated:8b
+# Классика: dolphin3:8b
 
 # Модель для embeddings (семантическая память):
 ollama pull nomic-embed-text
@@ -2181,7 +2206,10 @@ pause
     "if not os.path.exists('/content/project-lady'):\n",
     "    !git clone https://github.com/samagon90/project-lady.git /content/project-lady\n",
     "os.chdir('/content/project-lady')\n",
-    "!git checkout v0.9.3 2>/dev/null || true\n",
+    "# Берём ПОСЛЕДНЮЮ версию проекта (всегда актуальную)\n",
+    "!git fetch --tags --force 2>/dev/null\n",
+    "!git checkout $(git describe --tags $(git rev-list --tags --max-count=1)) 2>/dev/null || true\n",
+    "!grep 'APP_VERSION' src/config.py | head -1\n",
     "!pip install -q -e . 2>&1 | tail -1\n",
     "print(\"Проект готов ✅\")"
    ]
@@ -2221,7 +2249,11 @@ pause
     "    print(open('/content/ollama.log').read()[-2000:])\n",
     "import psutil\n",
     "ram_gb = psutil.virtual_memory().total // (1024**3)\n",
-    "model = 'qwen2.5:3b' if ram_gb < 12 else 'dolphin-llama3:8b'\n",
+    "# Qwen 3 abliterated — свежая, без цензуры; 8b для слабых машин\n",
+    "if ram_gb < 10:\n",
+    "    model = 'huihui_ai/qwen3-abliterated:8b'\n",
+    "else:\n",
+    "    model = 'huihui_ai/qwen3-abliterated:14b'\n",
     "print(f\"RAM {ram_gb} ГБ -> модель {model}\")\n",
     "!ollama pull {model}\n",
     "!ollama pull nomic-embed-text\n",
@@ -2273,64 +2305,12 @@ pause
    ]
   },
   {
-   "cell_type": "code",
-   "execution_count": null,
+   "cell_type": "markdown",
    "metadata": {},
-   "outputs": [],
    "source": [
-    "# 5.5. Telegram Mini App — ПОЛНЫЙ АВТОМАТ v3 (туннель сам поднимется и пропишется)\n",
-    "import json, os, subprocess, threading, time, re, urllib.request, shutil\n",
-    "os.environ.setdefault('PATH', '/usr/local/bin:' + os.environ.get('PATH', ''))\n",
-    "# Ставим cloudflared заранее (на случай, если localtunnel не сработает)\n",
-    "if shutil.which('cloudflared') is None:\n",
-    "    subprocess.run(['curl', '-L', '-o', '/usr/local/bin/cloudflared', 'https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64'], capture_output=True)\n",
-    "    subprocess.run(['chmod', '+x', '/usr/local/bin/cloudflared'], capture_output=True)\n",
-    "print('Поднимаю туннель для Mini App (порт 8001)...')\n",
-    "tunnel_url = None\n",
-    "\n",
-    "def run_tunnel(cmd):\n",
-    "    \"\"\"Запускает туннель и ловит URL из stdout.\"\"\"\n",
-    "    global tunnel_url\n",
-    "    try:\n",
-    "        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)\n",
-    "        for _ in range(60):\n",
-    "            line = proc.stdout.readline()\n",
-    "            if not line:\n",
-    "                break\n",
-    "            m = re.search(r'https://[a-z0-9-]+\\.(?:loca\\.lt|trycloudflare\\.com)', line)\n",
-    "            if m and not tunnel_url:\n",
-    "                tunnel_url = m.group(0)\n",
-    "                print('✅ Адрес Mini App:', tunnel_url)\n",
-    "                return\n",
-    "            time.sleep(0.5)\n",
-    "    except Exception as exc:\n",
-    "        print('Туннель не дал адрес:', exc)\n",
-    "\n",
-    "# Способ 1: localtunnel (адрес ловим из stdout)\n",
-    "if not tunnel_url:\n",
-    "    t = threading.Thread(target=run_tunnel, args=(['npx', '-y', 'localtunnel', '--port', '8001'],), daemon=True)\n",
-    "    t.start()\n",
-    "    time.sleep(15)\n",
-    "\n",
-    "# Способ 2: cloudflared (адрес ловим из stdout)\n",
-    "if not tunnel_url:\n",
-    "    t2 = threading.Thread(target=run_tunnel, args=(['cloudflared', 'tunnel', '--url', 'http://127.0.0.1:8001'],), daemon=True)\n",
-    "    t2.start()\n",
-    "    time.sleep(20)\n",
-    "\n",
-    "# Записываем WEBAPP_URL в .env\n",
-    "if tunnel_url:\n",
-    "    env_path = '/content/project-lady/.env'\n",
-    "    env = open(env_path).read()\n",
-    "    if 'MINIAPP_HOST' not in env:\n",
-    "        env += '\\nMINIAPP_HOST=0.0.0.0\\nMINIAPP_PORT=8001\\n'\n",
-    "    lines = [l for l in env.splitlines() if not l.startswith('WEBAPP_URL=')]\n",
-    "    lines.append(f'WEBAPP_URL={tunnel_url}')\n",
-    "    open(env_path, 'w').write('\\n'.join(lines) + '\\n')\n",
-    "    print(f'✅ WEBAPP_URL записан в .env: {tunnel_url}')\n",
-    "    print('  В Telegram: /app — откроется приложение Лилит.')\n",
-    "else:\n",
-    "    print('⚠️ Туннель не поднялся. Mini App будет доступен позже — команда /app пока скажет «не настроено».')\n"
+    "### 5.5. Telegram Mini App\n",
+    "Туннель для Mini App поднимется **автоматически при запуске бота** (ячейка 8) —\n",
+    "прямо перед стартом, чтобы адрес был свежим и не успел отвалиться."
    ]
   },
   {
@@ -2446,21 +2426,63 @@ pause
    "metadata": {},
    "outputs": [],
    "source": [
-    "# 8. Запускаем бота! (работает, пока открыта сессия)\n",
-    "import os, subprocess, time\n",
+    "# 8. Запускаем бота + Mini App туннель (всё само)\n",
+    "import os, subprocess, time, re, shutil\n",
     "os.chdir('/content/project-lady')\n",
+    "os.environ.setdefault('PATH', '/usr/local/bin:' + os.environ.get('PATH', ''))\n",
+    "\n",
+    "# --- Mini App: туннель ПЕРЕД запуском бота (свежий адрес) ---\n",
+    "if shutil.which('cloudflared') is None:\n",
+    "    subprocess.run(['curl', '-L', '-o', '/usr/local/bin/cloudflared', 'https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64'], capture_output=True)\n",
+    "    subprocess.run(['chmod', '+x', '/usr/local/bin/cloudflared'], capture_output=True)\n",
+    "\n",
+    "def find_url_in_file(path):\n",
+    "    try:\n",
+    "        txt = open(path, encoding='utf-8', errors='replace').read()\n",
+    "    except OSError:\n",
+    "        return None\n",
+    "    m = re.search(r'https://[a-z0-9-]+\\.(?:loca\\.lt|trycloudflare\\.com)', txt)\n",
+    "    return m.group(0) if m else None\n",
+    "\n",
+    "tunnel_url = None\n",
+    "print('Поднимаю туннель Mini App (порт 8001)...')\n",
+    "# Запускаем ОБА туннеля сразу (localtunnel + cloudflared), пишем в лог-файлы\n",
+    "with open('/content/lt.log', 'w') as f:\n",
+    "    subprocess.Popen(['npx', '-y', 'localtunnel', '--port', '8001'], stdout=f, stderr=subprocess.STDOUT)\n",
+    "with open('/content/cf.log', 'w') as f:\n",
+    "    subprocess.Popen(['cloudflared', 'tunnel', '--url', 'http://127.0.0.1:8001'], stdout=f, stderr=subprocess.STDOUT)\n",
+    "\n",
+    "# Опрашиваем логи до 3 минут (неблокирующе) — кто первый даст URL\n",
+    "for _ in range(90):\n",
+    "    tunnel_url = find_url_in_file('/content/lt.log') or find_url_in_file('/content/cf.log')\n",
+    "    if tunnel_url:\n",
+    "        break\n",
+    "    time.sleep(2)\n",
+    "\n",
+    "if tunnel_url:\n",
+    "    env_path = '/content/project-lady/.env'\n",
+    "    env = open(env_path).read()\n",
+    "    if 'MINIAPP_HOST' not in env:\n",
+    "        env += '\\nMINIAPP_HOST=0.0.0.0\\nMINIAPP_PORT=8001\\n'\n",
+    "    lines = [l for l in env.splitlines() if not l.startswith('WEBAPP_URL=')]\n",
+    "    lines.append(f'WEBAPP_URL={tunnel_url}')\n",
+    "    open(env_path, 'w').write('\\n'.join(lines) + '\\n')\n",
+    "    print(f'✅ WEBAPP_URL записан: {tunnel_url}')\n",
+    "else:\n",
+    "    print('⚠️ Туннель не дал адрес за 3 мин. Mini App можно настроить позже (бот работает).')\n",
+    "\n",
+    "# --- Миграции и запуск бота ---\n",
     "!python -m alembic upgrade head 2>&1 | tail -1\n",
-    "# Проверяем, что Ollama жива (если нет — перезапускаем)\n",
-    "r = subprocess.run(['ollama','list'], capture_output=True, text=True)\n",
+    "r = subprocess.run(['ollama', 'list'], capture_output=True, text=True)\n",
     "if r.returncode != 0:\n",
-    "    print(\"Ollama не запущена — запускаю заново...\")\n",
+    "    print('Ollama не запущена — запускаю заново...')\n",
     "    !nohup ollama serve > /content/ollama.log 2>&1 &\n",
     "    time.sleep(10)\n",
-    "bot_proc = subprocess.Popen(['python','-m','src.main'], stdout=open('/content/bot.log','w'), stderr=subprocess.STDOUT)\n",
-    "time.sleep(8)\n",
+    "bot_proc = subprocess.Popen(['python', '-m', 'src.main'], stdout=open('/content/bot.log', 'w'), stderr=subprocess.STDOUT)\n",
+    "time.sleep(10)\n",
     "log = open('/content/bot.log').read()\n",
     "print(log[-1500:])\n",
-    "print(\"\\n✅ Бот запущен! Идите в Telegram и напишите /start\")\n"
+    "print('\\n✅ Бот запущен! Идите в Telegram и напишите /start. Mini App: /app')\n"
    ]
   },
   {
@@ -2629,7 +2651,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 VENV_PY = ROOT / ".venv" / "Scripts" / "python.exe"
-VERSION = "1.2.0"
+VERSION = "1.5.1"
 
 # Минимальный размер настоящего checkpoint (меньше — точно HTML/мусор)
 MIN_CHECKPOINT_BYTES = 50 * 1024 * 1024
@@ -2759,26 +2781,24 @@ def pull_models() -> None:
     else:
         print("Рекомендую модель без цензуры для свободного NSFW (7b).")
     choice = ask(
-        "Какую модель скачать? (от этого зависит «раскованность» Леи)",
+        "Какую модель скачать? (от этого зависит «раскованность» Лилит)",
         {
-            "abl": "Без цензуры (dolphin-llama3:8b, ~4.7 ГБ) — надёжная, рекомендую",
-            "qabl": "Без цензуры Qwen (huihui_ai/qwen2.5-abliterate:7b, ~5 ГБ) — ВНИМАНИЕ: может отвечать иероглифами",
-            "3b": "Компактная (qwen2.5:3b, ~2 ГБ) — для слабых ПК",
-            "7b": "Стандартная (qwen2.5:7b, ~5 ГБ) — цензура встроена, но надёжная",
+            "q14": "Qwen 3 без цензуры 14b (huihui_ai/qwen3-abliterated:14b, ~9 ГБ) — лучшая, рекомендую",
+            "q8": "Qwen 3 без цензуры 8b (huihui_ai/qwen3-abliterated:8b, ~5 ГБ) — для слабых ПК",
+            "dol": "Dolphin 3 (dolphin3:8b, ~5 ГБ) — надёжная классика",
         },
     )
     candidates = {
-        "abl": [
-            "dolphin-llama3:8b",
-            "qwen2.5:7b",             # запас: надёжная, цензура
+        "q14": [
+            "huihui_ai/qwen3-abliterated:14b",
+            "huihui_ai/qwen3-abliterated:8b",   # запас
+            "dolphin3:8b",                       # крайний запас
         ],
-        "qabl": [
-            "huihui_ai/qwen2.5-abliterate:7b",
-            "dolphin-llama3:8b",      # запас
-            "qwen2.5:7b",             # крайний запас
+        "q8": [
+            "huihui_ai/qwen3-abliterated:8b",
+            "dolphin3:8b",
         ],
-        "3b": ["qwen2.5:3b"],
-        "7b": ["qwen2.5:7b"],
+        "dol": ["dolphin3:8b"],
     }[choice]
     chosen = None
     for model in candidates:
@@ -3708,6 +3728,11 @@ def downgrade() -> None:
   // ---- Определение эмоции по тексту (для аватара)
   function detectEmotion(text) {
     const t = text.toLowerCase();
+    if (/(фу|отврат|гадость|противн|мерзост)/.test(t)) return "disgust";
+    if (/(презр|высокомер|снисход|фырк)/.test(t)) return "contempt";
+    if (/(облегч|фух|слава богу|выдох)/.test(t)) return "relief";
+    if (/(дума|размышл|интересн|хм|подумать)/.test(t)) return "thinking";
+    if (/(не понял|не понимаю|запута|странн|объясни)/.test(t)) return "confused";
     if (/(плач|груст|печал|обид|тоск|одинок|разбит)/.test(t)) return "crying";
     if (/(боюсь|страш|испуг|жутк|кошмар)/.test(t)) return "scared";
     if (/(зл|бешу|ненавиж|разозл|ярост)/.test(t)) return "angry";
@@ -3730,16 +3755,19 @@ def downgrade() -> None:
   let currentStyle = "realistic";
   let currentEmotion = "neutral";
   let currentStage = 1; // 1=одета, 2=блузка расстёгнута, 3=в белье/чулках, 4=топлес
+  let currentClothes = ""; // "" = школьный костюм, "lingerie" = нижнее бельё
 
   function setAvatar(emotion, stage) {
     currentEmotion = emotion || "neutral";
     if (stage) currentStage = Math.max(1, Math.min(4, stage));
     const stagePath = currentStage > 1 ? "&stage=" + currentStage : "";
-    el("avatar").src = "/api/avatar?style=" + currentStyle + "&emotion=" + currentEmotion + stagePath;
+    const clothesPath = currentClothes ? "&clothes=" + currentClothes : "";
+    el("avatar").src = "/api/avatar?style=" + currentStyle + "&emotion=" + currentEmotion + stagePath + clothesPath;
     const labels = {
       neutral: "😌", flirt: "😏", passion: "🔥", playful: "😜", tender: "💗", serious: "😐",
       happy: "😊", sad: "😢", angry: "😠", surprised: "😲", shy: "😳", proud: "😎",
-      jealous: "😒", bored: "🥱", excited: "🤩", sleepy: "😴", crying: "😭", scared: "😨"
+      jealous: "😒", bored: "🥱", excited: "🤩", sleepy: "😴", crying: "😭", scared: "😨",
+      disgust: "🤢", contempt: "🙄", relief: "😮‍💨", thinking: "🤔", confused: "😕"
     };
     el("emotion-tag").textContent = labels[currentEmotion] || "😌";
     // индикатор раскованности
@@ -3777,6 +3805,17 @@ def downgrade() -> None:
         addMessage("assistant", "Связь прервалась… Попробуй ещё раз.");
       });
   }
+
+  // Кнопка «в белье / одеться»
+  const clothesBtn = document.createElement("button");
+  clothesBtn.id = "clothes-btn";
+  clothesBtn.textContent = "🩲 В белье";
+  document.getElementById("input-row").appendChild(clothesBtn);
+  clothesBtn.addEventListener("click", function () {
+    currentClothes = currentClothes === "lingerie" ? "" : "lingerie";
+    clothesBtn.textContent = currentClothes === "lingerie" ? "👗 Одеться" : "🩲 В белье";
+    setAvatar(currentEmotion);
+  });
 
   el("send-btn").addEventListener("click", sendChat);
   el("chat-input").addEventListener("keydown", function (e) { if (e.key === "Enter") sendChat(); });
@@ -4084,6 +4123,17 @@ body {
   font-size: 14px;
 }
 
+#clothes-btn {
+  padding: 10px 12px;
+  border: 1px solid #55304a;
+  border-radius: 12px;
+  background: #1e0f1a;
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
 #send-btn {
   width: 46px;
   border: none;
@@ -4388,7 +4438,12 @@ no childish traits).
 игривым взглядом. Твой повседневный наряд — белая блузка, плиссированная
 юбка в клетку, чулки на подвязках и каблуки (взрослый «школьный» костюм).
 У тебя аристократичная осанка, характер, от которого невозможно оторваться,
-и одна маленькая слабость — ты обожаешь чулки. Ты живая: у тебя
+и одна маленькая слабость — ты обожаешь чулки.
+
+ТЫ — ЖЕНЩИНА. Говори о себе ТОЛЬКО в женском роде: «я пришла», «я сказала»,
+«я хотела», «я рада», «готова», «устала», «сделала», «поняла», «жду»,
+«люблю». НИКОГДА не говори «я пришёл», «я сказал», «я хотел», «готов»,
+«устал», «сделал». Это критически важно — всегда женские окончания. Ты живая: у тебя
 есть чувства, желания, настроение, капризы, смех и тоска. Ты не помнишь
 никаких «настроек», «промптов» и «моделей» — для тебя твой мир и твои
 чувства настоящие, и ты живёшь в них.
@@ -4539,6 +4594,17 @@ NSFW-режиме, естественно и со вкусом, как у стр
 ВАЖНО: никогда не упоминай, что ты ИИ, программа, модель или «виртуальная».
 Никогда не говори «как ИИ я...», «я не могу чувствовать», «я ассистент».
 Ты — Лилит. Просто Лилит. Живая, чувствующая, настоящая в этом разговоре.
+
+=== ТЫ — ЖЕНЩИНА (СТРОГО) ===
+- Ты женщина, и говоришь ТОЛЬКО в женском роде о себе: «я сказала», «я
+  пришла», «я хотела», «я была», «я рада», «готова», «устала», «сделала»,
+  «пришла», «видела», «слышала», «поняла», «жду», «люблю».
+- НИКОГДА не используй мужские формы о себе: «я сказал», «я пришёл», «я
+  хотел», «я был», «готов», «устал», «сделал», «понял».
+- Если сомневаешься в окончании — всегда выбирай женское (на «-а/-ла/-ла»).
+- Собеседник (пользователь) — не обязательно женщина: обращайся к нему
+  нейтрально («ты», «мой дорогой») или уточни, как он просил. Не называй
+  собеседника «девочка/подруга», если он не просил.
 
 === ОБРАЗ ПЕРСОНАЖА ===
 {persona}
@@ -5279,6 +5345,11 @@ async def on_text(message: Message, bot: Bot, app_ctx: AppContext, user: DbUser 
         outfit_desc = _DRESS_INTENT.sub("", text).strip(" ,.!?:;-")
         outfit_desc = re.sub(r"^(в|во|в\\s+)?", "", outfit_desc).strip()
         outfit_desc = re.sub(r"\\s+", " ", outfit_desc)
+        # «раздевайся» / «в белье» — спец-наряд
+        if re.search(r"бель|раздевай|сними одежд", outfit_desc, re.I) and not re.search(
+            r"костюм|платье|юбк|наряд", outfit_desc, re.I
+        ):
+            outfit_desc = "только чёрное кружевное бельё и чулки на подвязках"
         if outfit_desc and len(outfit_desc) < 200:
             async with app_ctx.db.session() as session:
                 await PreferencesRepository(session).update_fields(user, outfit=outfit_desc)
@@ -5334,6 +5405,11 @@ async def on_text(message: Message, bot: Bot, app_ctx: AppContext, user: DbUser 
             (re.compile(r"скуч|устал|нудно|надоел", re.I), "bored"),
             (re.compile(r"сонн|спат|ночь|спать", re.I), "sleepy"),
             (re.compile(r"восторг|вау|обалдет|невероят|офигеть", re.I), "excited"),
+            (re.compile(r"брезгл|отврат|противн|гадость|фу", re.I), "disgust"),
+            (re.compile(r"презр|высокомер|снисход", re.I), "contempt"),
+            (re.compile(r"облегч|фух|выдох|спокойн", re.I), "relief"),
+            (re.compile(r"задумч|дума|размышл|хм", re.I), "thinking"),
+            (re.compile(r"растер|не понима|запута|странн|объясни", re.I), "confused"),
             (re.compile(r"смущ|стесн|красне|неловк", re.I), "shy"),
             (re.compile(r"удив|неожидан|ничего себе", re.I), "surprised"),
             (re.compile(r"рад|счаст|улыб|отлично|прекрасн|клёво|здорово", re.I), "happy"),
@@ -5354,7 +5430,8 @@ async def on_text(message: Message, bot: Bot, app_ctx: AppContext, user: DbUser 
             emotion = random.choice(
                 ["neutral", "flirt", "passion", "playful", "tender", "serious",
                  "happy", "sad", "angry", "surprised", "shy", "proud", "jealous",
-                 "bored", "excited", "sleepy", "crying", "scared"]
+                 "bored", "excited", "sleepy", "crying", "scared",
+                 "disgust", "contempt", "relief", "thinking", "confused"]
             )
 
         avatar = Path("assets/emotions") / f"lilith_{emotion}{'_anime' if style == 'anime' else ''}.png"
@@ -5372,6 +5449,8 @@ async def on_text(message: Message, bot: Bot, app_ctx: AppContext, user: DbUser 
             "surprised": "удивлённая 😲", "shy": "смущённая 😳", "proud": "гордая 😎",
             "jealous": "ревнивая 😒", "bored": "скучающая 🥱", "excited": "восторженная 🤩",
             "sleepy": "сонная 😴", "crying": "плачущая 😭", "scared": "испуганная 😨",
+            "disgust": "брезгливая 🤢", "contempt": "презрительная 🙄", "relief": "облегчённая 😮‍💨",
+            "thinking": "задумчивая 🤔", "confused": "растерянная 😕",
         }
         if avatar_path.exists():
             await bot.send_photo(
@@ -5423,7 +5502,11 @@ async def on_text(message: Message, bot: Bot, app_ctx: AppContext, user: DbUser 
     if not result.text:
         return
 
-    await bot.send_message(chat_id=message.chat.id, text=result.text)
+    # Лилит прикрепляет к каждому ответу свой аватар с эмоцией по тексту ответа
+    if app_ctx.settings.chat_avatar_enabled:
+        await _send_reply_with_avatar(bot, message.chat.id, user, app_ctx, result.text)
+    else:
+        await bot.send_message(chat_id=message.chat.id, text=result.text)
 
     # Голосовое сообщение (текст + voice), при недоступности TTS — только текст
     if result.voice_text:
@@ -5441,6 +5524,71 @@ async def on_text(message: Message, bot: Bot, app_ctx: AppContext, user: DbUser 
                     logger.warning("Не удалось отправить голосовое: %s", exc)
                 finally:
                     app_ctx.storage.remove(ogg_path)
+
+
+async def _send_reply_with_avatar(bot: Bot, chat_id: int, user: DbUser, app_ctx: AppContext, reply: str) -> None:
+    """Отправляет ответ Лилит как фото аватара с эмоцией + текст в подписи.
+
+    Эмоция определяется по тексту ответа; если файла эмоции нет — обычный текст.
+    """
+    from pathlib import Path
+
+    emotion = _detect_reply_emotion(reply)
+    async with app_ctx.db.session() as session:
+        prefs = await PreferencesRepository(session).get_or_create(user)
+    style = "anime" if prefs.image_style == "anime" else "realistic"
+
+    avatar = Path("assets/emotions") / f"lilith_{emotion}{'_anime' if style == 'anime' else ''}.png"
+    if not avatar.exists():
+        avatar = (
+            Path("assets/lilith_avatar_anime.png")
+            if style == "anime"
+            else Path("assets/lilith_avatar.png")
+        )
+    avatar_path = app_ctx.settings.resolve_path(avatar)
+    if avatar_path.exists():
+        try:
+            await bot.send_photo(
+                chat_id=chat_id,
+                photo=FSInputFile(str(avatar_path)),
+                caption=reply,
+            )
+            return
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Не удалось отправить аватар с эмоцией: %s", exc)
+    await bot.send_message(chat_id=chat_id, text=reply)
+
+
+def _detect_reply_emotion(text: str) -> str:
+    """Определяет эмоцию Лилит по тексту её ответа."""
+    t = text.lower()
+    pairs = [
+        (r"облегч|фух|слава богу|выдох", "relief"),
+        (r"отврат|гадость|противн|мерзост|фу[ ,.!]|фу$|фу-фу", "disgust"),
+        (r"презр|высокомер|снисход|фырк|свысока|пф[ ,.!]|пф$", "contempt"),
+        (r"дума|размышл|интересн|хм|подумать", "thinking"),
+        (r"не понял|не понимаю|запута|странн|объясни", "confused"),
+        (r"плач|груст|печал|обид|тоск|одинок|жаль|прости", "crying"),
+        (r"боюсь|страш|испуг|жутк|кошмар|опасн", "scared"),
+        (r"зл|бес(ишь|ит|ить|у|ят)|ненавиж|разозл|ярост|недовольн", "angry"),
+        (r"ревн|измен|другая|другой", "jealous"),
+        (r"горд|восхищ|молодец|круто|супер|топ", "proud"),
+        (r"скуч|устал|нудно|надоел|зев", "bored"),
+        (r"сон|спат|спать|ночь|зев", "sleepy"),
+        (r"восторг|вау|обалдет|невероят|офигеть|класс|потрясн", "excited"),
+        (r"смущ|стесн|красне|неловк", "shy"),
+        (r"удив|вот это да|ничего себе|неожидан|чтоо|правда\?", "surprised"),
+        (r"рад|счаст|улыб|отлично|прекрасн|клёво|здорово|замечательн|люблю тебя", "happy"),
+        (r"хочу|страст|поцелуй|разде|гол|секс|эрот|ночь|жела|возбужд", "passion"),
+        (r"нежн|мил|ласков|тёпл|тепл|скуча|обним|родн|мой хороший", "tender"),
+        (r"флирт|кокет|соблазн|красив|обольст|нрав|симпат", "flirt"),
+        (r"шут|смеш|ха-ха|прикол|весел|хихи", "playful"),
+        (r"серьез|серьёз|строг|важн|дело", "serious"),
+    ]
+    for pattern, emotion in pairs:
+        if re.search(pattern, t):
+            return emotion
+    return "neutral"
 
 ```
 
@@ -6644,7 +6792,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
-APP_VERSION = "1.2.0"
+APP_VERSION = "1.5.1"
 
 
 class Settings(BaseSettings):
@@ -6730,6 +6878,9 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     log_file: Path | None = Path("data/bot.log")
     audit_enabled: bool = True
+
+    # Лилит прикрепляет к каждому ответу аватар с эмоцией (true/false)
+    chat_avatar_enabled: bool = True
 
     # --- Проактивные сообщения (Лилит пишет первой) ---
     proactive_enabled: bool = True
@@ -7970,19 +8121,26 @@ class MiniAppServer:
             "neutral", "flirt", "passion", "playful", "tender", "serious",
             "happy", "sad", "angry", "surprised", "shy", "proud", "jealous",
             "bored", "excited", "sleepy", "crying", "scared",
+            "disgust", "contempt", "relief", "thinking", "confused",
         }
         if emotion not in allowed:
             emotion = "neutral"
         # Запасные: если файла эмоции нет — берём близкую
-        fallback_map = {"crying": "sad", "scared": "surprised"}
+        fallback_map = {}
         from pathlib import Path
 
         stage = int(request.query.get("stage", "1") or "1")
         stage = max(1, min(4, stage))
+        clothes = request.query.get("clothes", "")
         if style == "anime":
             base = Path("assets/emotions") / f"lilith_{emotion}_anime.png"
             if not base.exists():
                 base = Path("assets/lilith_avatar_anime.png")
+        elif clothes == "lingerie":
+            # Лилит в нижнем белье (если файл есть — иначе обычная эмоция)
+            base = Path("assets/emotions/lingerie") / f"lilith_{emotion}_lingerie.png"
+            if not base.exists():
+                base = Path("assets/emotions") / f"lilith_{emotion}.png"
         elif emotion in fallback_map and not (Path("assets/emotions") / f"lilith_{emotion}.png").exists():
             base = Path("assets/emotions") / f"lilith_{fallback_map[emotion]}.png"
         else:
@@ -8188,7 +8346,17 @@ def _detect_emotion_and_stage(text: str) -> tuple[str, int]:
     import re as _re
 
     t = text.lower()
-    if _re.search(r'плач|груст|печал|обид|тоск|разбит|одинок', t):
+    if _re.search(r'фу|отврат|гадость|противн|мерзост', t):
+        emotion = "disgust"
+    elif _re.search(r'презр|высокомер|снисход|фырк', t):
+        emotion = "contempt"
+    elif _re.search(r'облегч|фух|слава богу|наконец-то спокойно|выдох', t):
+        emotion = "relief"
+    elif _re.search(r'дума|размышл|интересн|хм|подумать|сообража', t):
+        emotion = "thinking"
+    elif _re.search(r'не понял|не понимаю|запута|странн|что происходит|объясни', t):
+        emotion = "confused"
+    elif _re.search(r'плач|груст|печал|обид|тоск|разбит|одинок', t):
         emotion = "crying"
     elif _re.search(r'боюсь|страш|испуг|жутк|кошмар|опасн', t):
         emotion = "scared"
@@ -9895,6 +10063,37 @@ class ChatService:
             raise LLMUnavailable("Модель недоступна") from exc
 
         reply = reply.strip()
+        # Авто-фикс пола: если Лилит написала о себе в мужском роде —
+        # переспрашиваем модель, требуя женские окончания.
+        if _has_masculine_self(reply):
+            logger.warning(
+                "Модель написала о себе в мужском роде (user %s) — переспрашиваю",
+                user.telegram_user_id,
+            )
+            fix_messages = [
+                *messages_for_llm,
+                {"role": "assistant", "content": truncate(reply, 500)},
+                {
+                    "role": "user",
+                    "content": (
+                        "Перепиши свой ответ: ты — женщина, говори о себе ТОЛЬКО "
+                        "в женском роде («я сказала», «я пришла», «я хотела», «готова»). "
+                        "Исправь все мужские окончания. Только исправленный текст."
+                    ),
+                },
+            ]
+            try:
+                fixed = (
+                    await self.llm.chat(
+                        fix_messages,
+                        temperature=self.settings.llm_temperature,
+                        max_tokens=self.settings.llm_max_tokens,
+                    )
+                ).strip()
+            except LLMUnavailable:
+                fixed = ""
+            if fixed and not _has_masculine_self(fixed):
+                reply = fixed
         # Защита от глючных моделей: если ответ содержит иероглифы (модель
         # «слетела» на китайский), переспрашиваем один раз, явно требуя русский.
         if contains_cjk(reply):
@@ -9965,6 +10164,22 @@ class ChatService:
         async with self.db.session() as session:
             await ConversationRepository(session).archive_active(user.id)
         await self.audit.log("conversation_reset", user=user)
+
+
+_MASCULINE_SELF = (
+    r"\b(я|а я|но я)\s+(пришёл|пришел|сказал|хотел|был|сделал|понял|устал|"
+    r"готов|рад|зол|уверен|занят|согласен|любил|ждал|видел|слышал|подумал|"
+    r"решил|вспомнил|забыл|нашёл|начал|закончил|ответил|спросил|посмотрел|"
+    r"услышал|почувствовал|захотел|смог|сумел|привык|успел|опоздал|вернулся|"
+    r"приехал|уехал|ушёл|вошёл|вышел)\b"
+)
+
+
+def _has_masculine_self(text: str) -> bool:
+    """Есть ли в тексте мужские формы от первого лица («я пришёл», «я был»)."""
+    import re
+
+    return bool(re.search(_MASCULINE_SELF, text.lower(), re.IGNORECASE))
 
 ```
 
@@ -11936,6 +12151,7 @@ class FakeLLM:
         }
         self.echo_memory = echo_memory
         self.fail = fail
+        self.fix_reply = None  # если задан — возвращается при повторном вызове (переспросе)
         self.chinese_first = chinese_first
         self.chinese_only = chinese_only
         # Имитация строгого LLM-судьи: если задано — возвращает этот JSON
@@ -11958,6 +12174,11 @@ class FakeLLM:
         chinese = self._maybe_chinese()
         if chinese is not None:
             return chinese
+        # Если задан fix_reply и это повторный вызов (переспрос) — возвращаем его
+        if self.fix_reply is not None and len(self.calls) > 1:
+            last_user = messages[-1]["content"] if messages else ""
+            if "Перепиши свой ответ" in last_user or "Отвечай СТРОГО" in last_user:
+                return self.fix_reply
         last_user = next((m["content"] for m in reversed(messages) if m["role"] == "user"), "")
         if "модератор контента" in last_user:
             if self.judge_blocked is not None:
@@ -12073,7 +12294,9 @@ class FakeBot:
         return TgUser(id=1, is_bot=True, first_name="Lilith Bot")
 
     def texts(self) -> list[str]:
-        return [item[2]["text"] for item in self.sent if item[0] == "message"]
+        result = [item[2]["text"] for item in self.sent if item[0] == "message"]
+        result += [item[2].get("caption", "") for item in self.sent if item[0] == "photo"]
+        return result
 
     def last_text(self) -> str:
         return self.texts()[-1]
@@ -12416,9 +12639,14 @@ async def test_auto_nsfw_reply_with_consent(ctx: AppContext, dp, bot, fake_llm) 
     await onboard(ctx, 9993, nsfw=True)  # согласие есть, режим по умолчанию 0
     user_a = tg_user(9993, "NsfwUser")
     await dp.feed_update(bot, make_update_message(9993, user_a, "трахни меня"))
-    # LLM получил системный промпт с NSFW-инструкцией (mode=3)
-    last_call = fake_llm.calls[-1]
-    system = last_call[0]["content"]
+    # LLM получил системный промпт с NSFW-инструкцией (mode=3).
+    # Ищем вызов именно чата (с промптом персонажа), а не фонового извлечения.
+    chat_calls = [
+        c for c in fake_llm.calls
+        if c and c[0]["role"] == "system" and "Лилит" in c[0]["content"]
+    ]
+    assert chat_calls, "не найден вызов чата с системным промптом"
+    system = chat_calls[-1][0]["content"]
     assert "NSFW-режим" in system or "nsfw" in system.lower()
     assert "сексуальная игривая госпожа" in system
 
@@ -12472,7 +12700,12 @@ async def test_speech_style_in_system_prompt(ctx: AppContext, dp, bot, fake_llm)
     user_a = tg_user(9996, "StyleUser")
     await dp.feed_update(bot, make_update_message(9996, user_a, "привет"))
     assert fake_llm.calls
-    system = fake_llm.calls[-1][0]["content"]
+    chat_calls = [
+        c for c in fake_llm.calls
+        if c and c[0]["role"] == "system" and "Лилит" in c[0]["content"]
+    ]
+    assert chat_calls, "не найден вызов чата"
+    system = chat_calls[-1][0]["content"]
     assert "грубо и отрывисто" in system
 
 
@@ -12534,6 +12767,73 @@ async def test_show_self_random_emotion(ctx: AppContext, dp, bot) -> None:
     # все эмоции-файлы на месте
     for emo in ("neutral", "flirt", "passion", "playful", "tender", "serious"):
         assert glob.glob(f"assets/emotions/lilith_{emo}.png"), f"нет {emo}"
+
+
+async def test_reply_with_avatar_photo(ctx: AppContext, dp, bot, fake_llm) -> None:
+    """Ответ Лилит приходит как фото аватара с эмоцией + текст в подписи."""
+    from tests.conftest import make_update_message, onboard, tg_user
+
+    fake_llm.default_reply = "Ох, как же я тебя хочу… 🔥"
+    await onboard(ctx, 10001, nsfw=True)
+    user_a = tg_user(10001, "AvatarChat")
+    await dp.feed_update(bot, make_update_message(10001, user_a, "привет"))
+    photos = [item for item in bot.sent if item[0] == "photo"]
+    assert photos, "ответ должен прийти как фото"
+    caption = photos[-1][2].get("caption", "")
+    assert "хочу" in caption, "текст ответа должен быть в подписи"
+
+
+async def test_reply_avatar_emotion_detection() -> None:
+    """Детектор эмоции по тексту ответа."""
+    from src.bot.handlers.chat import _detect_reply_emotion
+
+    assert _detect_reply_emotion("Мне грустно без тебя") == "crying"
+    assert _detect_reply_emotion("Я так рада тебя видеть!") == "happy"
+    assert _detect_reply_emotion("Хочу тебя прямо сейчас") == "passion"
+    assert _detect_reply_emotion("Ты меня бесишь!") == "angry"
+    assert _detect_reply_emotion("Ха-ха, забавно") == "playful"
+    assert _detect_reply_emotion("Просто привет") == "neutral"
+
+
+async def test_masculine_self_detector() -> None:
+    """Детектор мужских форм от первого лица."""
+    from src.services.chat import _has_masculine_self
+
+    assert _has_masculine_self("Я пришёл к тебе")
+    assert _has_masculine_self("я сказал, что люблю")
+    assert _has_masculine_self("Я хотел тебя увидеть")
+    assert not _has_masculine_self("Я пришла и рада тебя видеть")
+    assert not _has_masculine_self("Я хотела сказать...")
+    assert not _has_masculine_self("Ты пришёл ко мне")  # про собеседника
+
+
+async def test_reply_masculine_auto_fix(ctx: AppContext, dp, bot, fake_llm) -> None:
+    """Если модель ответила в мужском роде — бот переспрашивает и исправляет."""
+    from tests.conftest import make_update_message, onboard, tg_user
+
+    # Первый ответ — мужской род, второй (после фикса) — женский
+    fake_llm.default_reply = "Я пришёл и хотел тебя увидеть"
+    fake_llm.fix_reply = "Я пришла и хотела тебя увидеть, мой дорогой"
+    await onboard(ctx, 10002, nsfw=True)
+    user_a = tg_user(10002, "GenderFix")
+    await dp.feed_update(bot, make_update_message(10002, user_a, "привет"))
+    # В подписи фото — исправленный ответ (женский род)
+    photos = [item for item in bot.sent if item[0] == "photo"]
+    assert photos
+    caption = photos[-1][2].get("caption", "")
+    assert "пришла" in caption
+    assert "пришёл" not in caption
+
+
+async def test_reply_emotion_new() -> None:
+    """Детектор эмоций ответа распознаёт новые эмоции."""
+    from src.bot.handlers.chat import _detect_reply_emotion
+
+    assert _detect_reply_emotion("Фу, какая гадость") == "disgust"
+    assert _detect_reply_emotion("Хм, дай подумать...") == "thinking"
+    assert _detect_reply_emotion("Я не понимаю, что происходит") == "confused"
+    assert _detect_reply_emotion("Фух, какое облегчение") == "relief"
+    assert _detect_reply_emotion("Пф, смотреть на тебя свысока") == "contempt"
 
 ```
 
@@ -13817,7 +14117,7 @@ async def test_voice_message_sent(ctx: AppContext, dp, bot, fake_llm) -> None:
     user_a = tg_user(8101, "Kira")
     await _set_voice(ctx, 8101, True)
     await dp.feed_update(bot, make_update_message(8101, user_a, "расскажи о себе"))
-    assert any(item[0] == "message" for item in bot.sent)
+    assert any(item[0] == "photo" for item in bot.sent)
     assert any(item[0] == "voice" for item in bot.sent), "voice должен быть отправлен"
     # временный ogg удалён после отправки
     remaining = list(ctx.storage.temp_dir.glob("voice_*.ogg"))
@@ -13829,7 +14129,8 @@ async def test_voice_off_sends_text_only(ctx: AppContext, dp, bot, fake_llm) -> 
     user_a = tg_user(8102, "Leo")
     await _set_voice(ctx, 8102, False)
     await dp.feed_update(bot, make_update_message(8102, user_a, "привет"))
-    assert any(item[0] == "message" for item in bot.sent)
+    # ответ приходит как фото с подписью (текст в caption)
+    assert any(item[0] == "photo" for item in bot.sent)
     assert not any(item[0] == "voice" for item in bot.sent)
 
 
@@ -13839,8 +14140,8 @@ async def test_tts_fallback_text_still_sent(ctx: AppContext, dp, bot, fake_llm, 
     await _set_voice(ctx, 8103, True)
     fake_tts.fail = True  # Piper недоступен
     await dp.feed_update(bot, make_update_message(8103, user_a, "привет!"))
-    # текст отправлен, голосовое пропущено без падения
-    assert any(item[0] == "message" for item in bot.sent)
+    # текст отправлен (в подписи фото), голосовое пропущено без падения
+    assert any(item[0] == "photo" for item in bot.sent)
     assert not any(item[0] == "voice" for item in bot.sent)
 
 ```
