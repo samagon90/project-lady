@@ -273,3 +273,16 @@ async def test_checkpoint_keeps_existing() -> None:
             break
     else:
         raise AssertionError("нет узла Load Checkpoint")
+
+
+async def test_photo_intent_prishli_goluyu(ctx: AppContext, dp, bot) -> None:
+    """«пришли голую фотку» без /photo запускает генерацию."""
+    from tests.conftest import make_update_message, onboard, tg_user
+
+    user_a = tg_user(8113, "Pasha")
+    await onboard(ctx, 8113)
+    await dp.feed_update(bot, make_update_message(8113, user_a, "пришли голую фотку"))
+    assert "создаётся" in bot.last_text()
+    async with ctx.db.session() as session:
+        jobs = await JobRepository(session).queued_jobs()
+        assert len(jobs) == 1
