@@ -118,3 +118,31 @@ async def test_miniapp_static_pages_serve_200(ctx) -> None:
                     assert len(text) > 0
     finally:
         await server.stop()
+
+
+async def test_miniapp_avatar_all_emotions(ctx) -> None:
+    """Все 18 эмоций отдаются (crying/scared — через fallback)."""
+    import aiohttp
+
+    server = MiniAppServer(ctx.db, "123:TESTTOKEN")
+    await server.start()
+    emotions = ["neutral", "flirt", "passion", "playful", "tender", "serious",
+                "happy", "sad", "angry", "surprised", "shy", "proud", "jealous",
+                "bored", "excited", "sleepy", "crying", "scared"]
+    try:
+        async with aiohttp.ClientSession() as session:
+            for emo in emotions:
+                async with session.get(f"http://127.0.0.1:8001/api/avatar?style=realistic&emotion={emo}") as r:
+                    assert r.status == 200, f"{emo} -> {r.status}"
+    finally:
+        await server.stop()
+
+
+async def test_detect_emotion_new() -> None:
+    """Детектор эмоций распознаёт новые эмоции."""
+    from src.miniapp_server import _detect_emotion_and_stage
+
+    assert _detect_emotion_and_stage("мне грустно без тебя")[0] == "crying"
+    assert _detect_emotion_and_stage("я так рада")[0] == "happy"
+    assert _detect_emotion_and_stage("ты меня бесишь")[0] == "angry"
+    assert _detect_emotion_and_stage("хочу тебя")[0] == "passion"

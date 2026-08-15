@@ -126,9 +126,15 @@ class MiniAppServer:
         """Отдаёт аватар Лилит по стилю и эмоции (для визуальной новеллы)."""
         style = request.query.get("style", "realistic")
         emotion = request.query.get("emotion", "neutral")
-        allowed = {"neutral", "flirt", "passion", "playful", "tender", "serious"}
+        allowed = {
+            "neutral", "flirt", "passion", "playful", "tender", "serious",
+            "happy", "sad", "angry", "surprised", "shy", "proud", "jealous",
+            "bored", "excited", "sleepy", "crying", "scared",
+        }
         if emotion not in allowed:
             emotion = "neutral"
+        # Запасные: если файла эмоции нет — берём близкую
+        fallback_map = {"crying": "sad", "scared": "surprised"}
         from pathlib import Path
 
         stage = int(request.query.get("stage", "1") or "1")
@@ -137,6 +143,8 @@ class MiniAppServer:
             base = Path("assets/emotions") / f"lilith_{emotion}_anime.png"
             if not base.exists():
                 base = Path("assets/lilith_avatar_anime.png")
+        elif emotion in fallback_map and not (Path("assets/emotions") / f"lilith_{emotion}.png").exists():
+            base = Path("assets/emotions") / f"lilith_{fallback_map[emotion]}.png"
         else:
             # Если запрошена стадия «раздевания» — берём из папки stage
             staged = Path("assets/emotions/stage") / f"lilith_{emotion}_stage{stage}.png"
@@ -340,13 +348,35 @@ def _detect_emotion_and_stage(text: str) -> tuple[str, int]:
     import re as _re
 
     t = text.lower()
-    if _re.search(r'страст|секс|эрот|хочу|гол|разврат|раздев|сними|трах|поцелуй', t):
+    if _re.search(r'плач|груст|печал|обид|тоск|разбит|одинок', t):
+        emotion = "crying"
+    elif _re.search(r'боюсь|страш|испуг|жутк|кошмар|опасн', t):
+        emotion = "scared"
+    elif _re.search(r'зл|бес(ишь|ит|ить|у|ят)|ненавиж|разозл|ярост|терпеть не могу', t):
+        emotion = "angry"
+    elif _re.search(r'ревн|измен|другая|другой|кто эта', t):
+        emotion = "jealous"
+    elif _re.search(r'горд|восхищ|молодец|круто|супер|топ', t):
+        emotion = "proud"
+    elif _re.search(r'скуч|устал|нудно|надоел|зев', t):
+        emotion = "bored"
+    elif _re.search(r'сон|спат|ночь|устал спать|зев', t):
+        emotion = "sleepy"
+    elif _re.search(r'восторг|вау|обалдет|невероят|офигеть|класс', t):
+        emotion = "excited"
+    elif _re.search(r'смущ|стесн|красне|неловк|застесн', t):
+        emotion = "shy"
+    elif _re.search(r'удив|вот это да|ничего себе|неожидан|чтоо|серьёзно\?', t):
+        emotion = "surprised"
+    elif _re.search(r'рад|счаст|улыб|хорошо|отлично|прекрасн|клёво|здорово', t):
+        emotion = "happy"
+    elif _re.search(r'страст|секс|эрот|хочу|гол|разврат|раздев|сними|трах|поцелуй', t):
         emotion = "passion"
-    elif _re.search(r'нежн|любов|мил|ласков|тёпл|тепл|скуча|обним', t):
+    elif _re.search(r'нежн|любов|мил|ласков|тёпл|тепл|скуча|обним|родн', t):
         emotion = "tender"
-    elif _re.search(r'весел|смешн|шут|игрив|озорн|задорн', t):
+    elif _re.search(r'весел|смешн|шут|игрив|озорн|задорн|ха-ха', t):
         emotion = "playful"
-    elif _re.search(r'серьез|серьёз|строг|важн|зл', t):
+    elif _re.search(r'серьез|серьёз|строг|важн|дело', t):
         emotion = "serious"
     elif _re.search(r'флирт|кокет|соблазн|красив|обольст|нрав', t):
         emotion = "flirt"

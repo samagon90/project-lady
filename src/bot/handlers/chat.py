@@ -137,10 +137,21 @@ async def on_text(message: Message, bot: Bot, app_ctx: AppContext, user: DbUser 
 
         # Определяем эмоцию по тексту («покажи себя страстной» -> passion) или случайную
         _EMOTION_WORDS = [
+            (re.compile(r"плач|груст|печал|обид|тоск|одинок", re.I), "crying"),
+            (re.compile(r"боюсь|страш|испуг|жутк|кошмар", re.I), "scared"),
+            (re.compile(r"зл|бешу|ненавиж|разозл|ярост", re.I), "angry"),
+            (re.compile(r"ревн|измен", re.I), "jealous"),
+            (re.compile(r"горд|восхищ|молодец|круто|супер", re.I), "proud"),
+            (re.compile(r"скуч|устал|нудно|надоел", re.I), "bored"),
+            (re.compile(r"сонн|спат|ночь|спать", re.I), "sleepy"),
+            (re.compile(r"восторг|вау|обалдет|невероят|офигеть", re.I), "excited"),
+            (re.compile(r"смущ|стесн|красне|неловк", re.I), "shy"),
+            (re.compile(r"удив|неожидан|ничего себе", re.I), "surprised"),
+            (re.compile(r"рад|счаст|улыб|отлично|прекрасн|клёво|здорово", re.I), "happy"),
             (re.compile(r"страст|секс|эрот|хочу|гол|разврат", re.I), "passion"),
             (re.compile(r"весел|смешн|шут|игрив|озорн|задорн", re.I), "playful"),
             (re.compile(r"нежн|любов|мил|ласков|тёпл|тепл|скуча", re.I), "tender"),
-            (re.compile(r"серьез|серьёз|строг|важн|зл", re.I), "serious"),
+            (re.compile(r"серьез|серьёз|строг|важн", re.I), "serious"),
             (re.compile(r"флирт|кокет|соблазн|красив|обольст", re.I), "flirt"),
         ]
         emotion = None
@@ -151,7 +162,11 @@ async def on_text(message: Message, bot: Bot, app_ctx: AppContext, user: DbUser 
         if emotion is None:
             import random
 
-            emotion = random.choice(["neutral", "flirt", "passion", "playful", "tender", "serious"])
+            emotion = random.choice(
+                ["neutral", "flirt", "passion", "playful", "tender", "serious",
+                 "happy", "sad", "angry", "surprised", "shy", "proud", "jealous",
+                 "bored", "excited", "sleepy", "crying", "scared"]
+            )
 
         avatar = Path("assets/emotions") / f"lilith_{emotion}{'_anime' if style == 'anime' else ''}.png"
         if not avatar.exists():
@@ -162,12 +177,12 @@ async def on_text(message: Message, bot: Bot, app_ctx: AppContext, user: DbUser 
             )
         avatar_path = app_ctx.settings.resolve_path(avatar)
         labels = {
-            "neutral": "спокойная 😌",
-            "flirt": "игривая 😏",
-            "passion": "страстная 🔥",
-            "playful": "озорная 😜",
-            "tender": "нежная 💗",
-            "serious": "серьёзная 😐",
+            "neutral": "спокойная 😌", "flirt": "игривая 😏", "passion": "страстная 🔥",
+            "playful": "озорная 😜", "tender": "нежная 💗", "serious": "серьёзная 😐",
+            "happy": "радостная 😊", "sad": "грустная 😢", "angry": "злая 😠",
+            "surprised": "удивлённая 😲", "shy": "смущённая 😳", "proud": "гордая 😎",
+            "jealous": "ревнивая 😒", "bored": "скучающая 🥱", "excited": "восторженная 🤩",
+            "sleepy": "сонная 😴", "crying": "плачущая 😭", "scared": "испуганная 😨",
         }
         if avatar_path.exists():
             await bot.send_photo(

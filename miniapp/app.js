@@ -26,8 +26,19 @@
   // ---- Определение эмоции по тексту (для аватара)
   function detectEmotion(text) {
     const t = text.toLowerCase();
-    if (/(люблю|скучал|милый|нежно|обним|родн)/.test(t)) return "tender";
+    if (/(плач|груст|печал|обид|тоск|одинок|разбит)/.test(t)) return "crying";
+    if (/(боюсь|страш|испуг|жутк|кошмар)/.test(t)) return "scared";
+    if (/(зл|бешу|ненавиж|разозл|ярост)/.test(t)) return "angry";
+    if (/(ревн|измен|другая|другой)/.test(t)) return "jealous";
+    if (/(горд|восхищ|молодец|круто|супер|топ)/.test(t)) return "proud";
+    if (/(скуч|устал|нудно|надоел|зев)/.test(t)) return "bored";
+    if (/(сон|спат|ночь|спать|зев)/.test(t)) return "sleepy";
+    if (/(восторг|вау|обалдет|невероят|офигеть|класс)/.test(t)) return "excited";
+    if (/(смущ|стесн|красне|неловк)/.test(t)) return "shy";
+    if (/(удив|вот это да|ничего себе|неожидан|чтоо)/.test(t)) return "surprised";
+    if (/(рад|счаст|улыб|хорошо|отлично|прекрасн|клёво|здорово)/.test(t)) return "happy";
     if (/(хочу|страст|поцелуй|разде|гол|секс|эрот|ночь|жела)/.test(t)) return "passion";
+    if (/(люблю|скучал|милый|нежно|обним|родн)/.test(t)) return "tender";
     if (/(флирт|кокет|соблазн|красив|нрав)/.test(t)) return "flirt";
     if (/(шут|смешно|ха-ха|прикол|весел)/.test(t)) return "playful";
     if (/(злишь|обид|серьез|серьёз|важн)/.test(t)) return "serious";
@@ -44,7 +55,9 @@
     const stagePath = currentStage > 1 ? "&stage=" + currentStage : "";
     el("avatar").src = "/api/avatar?style=" + currentStyle + "&emotion=" + currentEmotion + stagePath;
     const labels = {
-      neutral: "😌", flirt: "😏", passion: "🔥", playful: "😜", tender: "💗", serious: "😐"
+      neutral: "😌", flirt: "😏", passion: "🔥", playful: "😜", tender: "💗", serious: "😐",
+      happy: "😊", sad: "😢", angry: "😠", surprised: "😲", shy: "😳", proud: "😎",
+      jealous: "😒", bored: "🥱", excited: "🤩", sleepy: "😴", crying: "😭", scared: "😨"
     };
     el("emotion-tag").textContent = labels[currentEmotion] || "😌";
     // индикатор раскованности
