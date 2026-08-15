@@ -423,3 +423,21 @@ async def test_hires_fix_nodes_present() -> None:
     # VAEDecode берёт из hi-res KSampler
     vae = next(n for n in wf.values() if n.get("class_type") == "VAEDecode")
     assert vae["inputs"]["samples"] == ["12", 0]
+
+
+async def test_video_submit_and_nsfw_consent(ctx: AppContext, fake_llm) -> None:
+    """Видео-задача создаётся; NSFW-видео требует согласия."""
+
+    # Без NSFW-согласия — отказ
+    user = await onboard(ctx, 8119, nsfw=False)
+    ok, job_id, refusal = await ctx.video_service.submit(user, "видео с голой Лилит", 1)
+    assert not ok
+    assert "согласи" in (refusal or "")
+
+    # С согласием — задача создаётся
+    user2 = await onboard(ctx, 8120, nsfw=True)
+    ok, job_id, refusal = await ctx.video_service.submit(user2, "Лилит машет рукой", 1)
+    assert ok and job_id
+    async with ctx.db.session() as session:
+        job = await JobRepository(session).get(job_id)
+        assert job is not None and job.job_type == "video"

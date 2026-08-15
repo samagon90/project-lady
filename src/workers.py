@@ -250,7 +250,35 @@ def start_workers(
     tasks.append(asyncio.create_task(retention.run()))
     proactive = ProactiveWorker(ctx, bot, ctx.stop_event)
     tasks.append(asyncio.create_task(proactive.run()))
+    # Воркер видео (1 поток — AnimateDiff тяжёлый)
+    video_worker = VideoWorker(ctx.video_service.queue, ctx.video_service, ctx.db, bot, ctx.stop_event)
+    tasks.append(asyncio.create_task(video_worker.run()))
     return tasks
+
+
+class VideoWorker:
+    """Исполняет очередь видео-генерации."""
+
+    def __init__(self, queue, video_service, db, bot, stop_event) -> None:
+        self.queue = queue
+        self.video_service = video_service
+        self.db = db
+        self.bot = bot
+        self.stop_event = stop_event
+
+    async def run(self) -> None:
+        logger.info("Воркер видео запущен")
+        while not self.stop_event.is_set():
+            try:
+                job_id = await asyncio.wait_for(self.queue.get(), timeout=1.0)
+            except TimeoutError:
+                continue
+            try:
+                await self.video_service.run_job(job_id, self.bot)
+            except Exception:  # noqa: BLE001
+                logger.exception("Ошибка видео-задачи %s", job_id)
+            finally:
+                self.queue.task_done()
 
 
 async def stop_workers(tasks: list[asyncio.Task]) -> None:

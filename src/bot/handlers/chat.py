@@ -214,6 +214,31 @@ async def on_text(message: Message, bot: Bot, app_ctx: AppContext, user: DbUser 
             )
         return
 
+    # Пользователь просит ВИДЕО — запускаем генерацию видео
+    _VIDEO_INTENT = re.compile(
+        r"^(сделай\s+видео|сгенерируй\s+видео|видео|создай\s+видео|запиши\s+видео|"
+        r"анимац|гиф|gif|оживи)\b",
+        re.IGNORECASE,
+    )
+    if _VIDEO_INTENT.search(text):
+        prompt = _VIDEO_INTENT.sub("", text).strip(" ,.!?:;-")
+        if not prompt:
+            prompt = text
+        from src.bot.handlers.commands import cmd_video
+
+        # эмулируем /video: создаём сообщение с текстом
+        fake = type(
+            "M", (),
+            {
+                "chat": message.chat,
+                "from_user": message.from_user,
+                "message_id": message.message_id,
+                "text": "/video " + prompt,
+            },
+        )()
+        await cmd_video(fake, bot, app_ctx, user)
+        return
+
     # Пользователь просит картинку без команды /photo — запускаем генерацию.
     # Условие: (а) явные просьбы (нарисуй/сгенерируй/пришли/кинь/покажи/дай/хочу...)
     # или (б) в фразе есть слово про фото/картинку И слово про взрослый контент

@@ -13,7 +13,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
-APP_VERSION = "1.7.5"
+APP_VERSION = "1.8.0"
 
 
 class Settings(BaseSettings):
@@ -67,6 +67,8 @@ class Settings(BaseSettings):
     # --- Изображения (ComfyUI) ---
     comfyui_base_url: str = "http://127.0.0.1:8188"
     comfyui_workflow_path: Path = Path("workflows/comfyui_lilith_sd15.json")
+    # Workflow для видео (AnimateDiff) — команда /video
+    comfyui_video_workflow_path: Path = Path("workflows/comfyui_lilith_video.json")
     # Референс-изображение (аватар Лилит) для IPAdapter — «твёрдый» образ
     comfyui_reference_image: Path | None = Path("assets/emotions/lilith_playful.png")
     comfyui_checkpoint: str = "dreamshaper_8.safetensors"

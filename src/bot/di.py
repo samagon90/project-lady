@@ -29,6 +29,7 @@ from src.services.memory import MemoryService
 from src.services.moderation import ModerationService
 from src.services.storage import StorageService
 from src.services.tts import TTSService
+from src.services.video import VideoService
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +53,7 @@ class AppContext:
     chat: ChatService
     image_service: ImageService
     tts: TTSService
+    video_service: VideoService
     stop_event: asyncio.Event = field(default_factory=asyncio.Event)
     background_tasks: list[asyncio.Task] = field(default_factory=list)
 
@@ -248,6 +250,20 @@ def build_app_context(
     image_service = ImageService(database, llm_provider, image, moderation, consent, storage, audit, settings, prompts)
     tts_service = TTSService(tts, settings, storage)
 
+    # Видео: отдельный провайдер с video-workflow (тот же ComfyUI)
+    video_provider = ComfyUIProvider(
+        settings.comfyui_base_url,
+        settings.resolve_path(settings.comfyui_video_workflow_path),
+        checkpoint=settings.comfyui_checkpoint,
+        nsfw_checkpoint=settings.comfyui_nsfw_checkpoint,
+        reference_image=ref_image,
+        timeout_seconds=settings.comfyui_timeout_seconds,
+        poll_interval_seconds=settings.comfyui_poll_interval_seconds,
+    )
+    video_service = VideoService(
+        database, llm_provider, video_provider, moderation, consent, storage, audit, settings, prompts
+    )
+
     return AppContext(
         settings=settings,
         db=database,
@@ -264,4 +280,5 @@ def build_app_context(
         chat=chat,
         image_service=image_service,
         tts=tts_service,
+        video_service=video_service,
     )

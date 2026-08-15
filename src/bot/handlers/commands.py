@@ -269,6 +269,34 @@ def _nsfw_prompt_kb():
     )
 
 
+# ===================================================================== /video
+
+@router.message(Command("video"))
+async def cmd_video(message: Message, bot: Bot, app_ctx: AppContext, user: DbUser | None) -> None:
+    if not _require_user(user):
+        await _not_registered(message, bot)
+        return
+    assert user is not None
+    prompt_text = (message.text or "").removeprefix("/video").strip()
+    if not prompt_text:
+        await bot.send_message(
+            chat_id=message.chat.id,
+            text=(
+                "🎬 Опиши видео: например «Лилит машет рукой в белье»\n"
+                "⚠️ Видео генерируется 5–15 минут (AnimateDiff)."
+            ),
+        )
+        return
+    ok, job_id, refusal = await app_ctx.video_service.submit(user, prompt_text, message.message_id)
+    if not ok:
+        await bot.send_message(chat_id=message.chat.id, text=refusal or "Не получилось.")
+        return
+    await bot.send_message(
+        chat_id=message.chat.id,
+        text="🎬 Видео создаётся… Это займёт 5–15 минут. Я пришлю его сюда.",
+    )
+
+
 # ===================================================================== /avatar
 
 @router.message(Command("avatar"))

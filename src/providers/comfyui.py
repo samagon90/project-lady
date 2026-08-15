@@ -229,6 +229,7 @@ class ComfyUIProvider:
     async def _fetch_images(self, client: httpx.AsyncClient, outputs: dict) -> list[bytes]:
         images: list[bytes] = []
         for node_output in outputs.values():
+            # обычные изображения
             for image in node_output.get("images", []):
                 response = await client.get(
                     f"{self.base_url}/view",
@@ -236,6 +237,18 @@ class ComfyUIProvider:
                         "filename": image.get("filename", ""),
                         "subfolder": image.get("subfolder", ""),
                         "type": image.get("type", "output"),
+                    },
+                )
+                if response.status_code == 200:
+                    images.append(response.content)
+            # видео (VHS_VideoCombine отдаёт gifs)
+            for gif in node_output.get("gifs", []):
+                response = await client.get(
+                    f"{self.base_url}/view",
+                    params={
+                        "filename": gif.get("filename", ""),
+                        "subfolder": gif.get("subfolder", ""),
+                        "type": gif.get("type", "output"),
                     },
                 )
                 if response.status_code == 200:
