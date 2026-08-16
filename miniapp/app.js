@@ -38,6 +38,26 @@
 
   function detectEmotion(text) {
     const t = text.toLowerCase();
+    // Эмодзи — самый надёжный маркер эмоции (v2.0)
+    const emo = [
+      [/😈|🔥|💋|👅|🫦|😏/, "passion"],
+      [/💗|🥰|💖|😍|❤️/, "tender"],
+      [/😭|🥺|💔|😢/, "crying"],
+      [/😡|🤬|👿/, "angry"],
+      [/😳|🫣|🥵/, "shy"],
+      [/😱|😨|🫨/, "scared"],
+      [/😴|🥱/, "sleepy"],
+      [/🤔|🧐/, "thinking"],
+      [/😮|😲|🤯/, "surprised"],
+      [/😊|😄|😁|🥳|🎉/, "happy"],
+      [/😂|🤣|😜|😝/, "playful"],
+      [/😒|🙄|💅/, "contempt"],
+      [/🤢|🤮/, "disgust"],
+      [/😌|🕊/, "relief"]
+    ];
+    for (var i = 0; i < emo.length; i++) {
+      if (emo[i][0].test(t)) return emo[i][1];
+    }
     if (/(фу|отврат|гадость|противн|мерзост)/.test(t)) return "disgust";
     if (/(презр|высокомер|снисход|фырк)/.test(t)) return "contempt";
     if (/(облегч|фух|слава богу|выдох)/.test(t)) return "relief";
@@ -59,6 +79,8 @@
     if (/(флирт|кокет|соблазн|красив|нрав)/.test(t)) return "flirt";
     if (/(шут|смешно|ха-ха|прикол|весел)/.test(t)) return "playful";
     if (/(злишь|обид|серьез|серьёз|важн)/.test(t)) return "serious";
+    if (/!{2,}/.test(t)) return "excited";
+    if (/\?/.test(t) && t.length < 200) return "thinking";
     return "neutral";
   }
 
@@ -77,7 +99,9 @@
     const img = el("avatar");
     img.style.opacity = "0.3";
     img.onload = function () { img.style.opacity = "1"; };
-    img.src = "/api/avatar?style=" + currentStyle + "&emotion=" + currentEmotion + stagePath + clothesPath;
+    // cache-bust: гарантирует, что браузер перерисует фото при каждом ответе
+    const bust = "&_=" + Date.now();
+    img.src = "/api/avatar?style=" + currentStyle + "&emotion=" + currentEmotion + stagePath + clothesPath + bust;
     const tag = el("emotion-tag");
     if (tag) tag.textContent = EMOTION_LABELS[currentEmotion] || "😌";
     const mood = el("mood-tag");
@@ -214,6 +238,44 @@
     });
   }
 
+  // ============================== СЦЕНЫ (v2.0) ==============================
+
+  const SCENES = [
+    { emoji: "🕯", title: "Вечер при свечах", desc: "романтика, вино, разговоры до утра", text: "Давай устроим вечер при свечах… Ты, я, тёплый плед и никаких телефонов. Начни." },
+    { emoji: "👑", title: "Госпожа и слуга", desc: "игра в подчинение, дерзкая Лилит", text: "Встань на колени, мой хороший. Сегодня я буду госпожой, а ты — послушным. Играем?" },
+    { emoji: "💋", title: "Страстная ночь", desc: "жаркий разговор без запретов", text: "Сегодня я не буду сдерживаться… И тебе не советую. Расскажи, чего ты хочешь." },
+    { emoji: "🥰", title: "Нежность", desc: "обнимашки, забота, тёплые слова", text: "Иди сюда. Обниму, поцелую в макушку и расскажу, как ты мне дорог. Мне так хорошо с тобой." },
+    { emoji: "😈", title: "Ревность", desc: "дразнилки и проверка чувств", text: "Я видела, как ты смотрел на другую… Хочешь объясниться? Я умею быть очень ревнивой." },
+    { emoji: "🌙", title: "Сказка на ночь", desc: "уютные истории перед сном", text: "Ложись поудобнее. Я расскажу тебе сказку — только наша, тёплая, с хорошим концом." }
+  ];
+
+  function renderScenes() {
+    const wrap = el("scenes");
+    if (!wrap) return;
+    wrap.innerHTML = "";
+    SCENES.forEach(function (scene) {
+      const card = document.createElement("button");
+      card.className = "scene-card";
+      const title = document.createElement("div");
+      title.className = "scene-title";
+      title.textContent = scene.emoji + " " + scene.title;
+      const desc = document.createElement("div");
+      desc.className = "scene-desc";
+      desc.textContent = scene.desc;
+      card.appendChild(title);
+      card.appendChild(desc);
+      card.addEventListener("click", function () {
+        // Переключаемся в чат и отправляем сценарий
+        document.querySelectorAll(".tab").forEach(function (b) { b.classList.remove("active"); });
+        document.querySelectorAll(".panel").forEach(function (p) { p.classList.remove("active"); });
+        document.querySelector('.tab[data-tab="chat"]').classList.add("active");
+        el("chat-box").style.display = "flex";
+        sendChat(scene.text);
+      });
+      wrap.appendChild(card);
+    });
+  }
+
   // ============================== НАРЯД ==============================
 
   function generateOutfit() {
@@ -262,8 +324,9 @@
       el("chat-box").style.display = "none";
       el("tab-" + tab).classList.add("active");
       if (tab === "gallery") loadGallery();
-      if (tab === "memory") loadMemory();
       if (tab === "diary") loadDiary();
+      if (tab === "settings") { loadStats(); loadMemory(); }
+      if (tab === "scenes") renderScenes();
     });
   });
 
@@ -314,30 +377,99 @@
       .finally(function () { el("save").disabled = false; });
   });
 
+  // ============================== СТАТИСТИКА / ДОСТИЖЕНИЯ (v2.0) ==============================
+
+  function loadStats() {
+    const wrap = el("stats");
+    if (!wrap) return;
+    api("/api/me")
+      .then(function (d) {
+        const lines = [
+          "💜 Уровень: " + (d.level_name || "") + " (" + (d.level || 1) + "/7)",
+          "🔥 Серия дней: " + (d.streak || 0) + (d.max_streak ? " (рекорд " + d.max_streak + ")" : ""),
+          "🗓 Вместе: " + (d.days_together || 1) + " дн.",
+          "💬 Сообщений: " + (d.messages_total || 0),
+          "⭐ XP: " + (d.xp || 0)
+        ];
+        wrap.innerHTML = lines.map(function (l) { return "<div class='stat-line'>" + l + "</div>"; }).join("");
+      })
+      .catch(function () { wrap.innerHTML = '<p class="hint">Не удалось загрузить</p>'; });
+
+    const achWrap = el("achievements");
+    if (!achWrap) return;
+    api("/api/achievements")
+      .then(function (res) {
+        const items = res.items || [];
+        if (!items.length) { achWrap.innerHTML = '<p class="hint">Пока нет. Общайся — и они появятся 🏆</p>'; return; }
+        achWrap.innerHTML = "";
+        items.forEach(function (item) {
+          const row = document.createElement("div");
+          row.className = "achievement";
+          row.textContent = item.title;
+          achWrap.appendChild(row);
+        });
+      })
+      .catch(function () { achWrap.innerHTML = '<p class="hint">Не удалось загрузить</p>'; });
+  }
+
   // ============================== ГАЛЕРЕЯ / ДНЕВНИК / ПАМЯТЬ ==============================
+
+  function galleryCard(picSrc, caption, alt) {
+    const card = document.createElement("div");
+    card.className = "card";
+    const pic = document.createElement("img");
+    pic.className = "card-img";
+    pic.src = picSrc;
+    pic.alt = alt || "Lilith";
+    pic.loading = "lazy";
+    const cap = document.createElement("div");
+    cap.className = "card-date";
+    cap.textContent = caption || "";
+    card.appendChild(pic);
+    card.appendChild(cap);
+    return card;
+  }
 
   function loadGallery() {
     el("gallery").innerHTML = '<p class="hint">Загрузка…</p>';
-    api("/api/gallery").then(function (res) {
-      const images = (res.images || []).filter(function (i) { return i.file_path; });
-      if (!images.length) { el("gallery").innerHTML = '<p class="hint">Пока пусто. Напиши «нарисуй…» боту.</p>'; return; }
-      el("gallery").innerHTML = "";
-      images.forEach(function (img) {
-        const card = document.createElement("div");
-        card.className = "card";
-        const pic = document.createElement("img");
-        pic.className = "card-img";
-        pic.src = "/api/gallery/image/" + img.id;
-        pic.alt = "Lilith";
-        pic.loading = "lazy";
-        const cap = document.createElement("div");
-        cap.className = "card-date";
-        cap.textContent = (img.created_at || "").replace("T", " ").slice(0, 16);
-        card.appendChild(pic);
-        card.appendChild(cap);
-        el("gallery").appendChild(card);
-      });
-    }).catch(function () { el("gallery").innerHTML = '<p class="hint">Не удалось загрузить</p>'; });
+    // Встроенные образы Лилит (assets/gallery) + сгенерированные пользователем
+    Promise.all([api("/api/gallery/static"), api("/api/gallery")])
+      .then(function (results) {
+        const staticImages = (results[0].images || []);
+        const userImages = (results[1].images || []).filter(function (i) { return i.file_path; });
+        if (!staticImages.length && !userImages.length) {
+          el("gallery").innerHTML = '<p class="hint">Пока пусто. Напиши «нарисуй…» боту.</p>';
+          return;
+        }
+        el("gallery").innerHTML = "";
+        if (staticImages.length) {
+          const h = document.createElement("h3");
+          h.className = "gallery-header";
+          h.textContent = "✨ Образы Лилит";
+          el("gallery").appendChild(h);
+          staticImages.forEach(function (name) {
+            el("gallery").appendChild(
+              galleryCard("/api/gallery/static/image/" + encodeURIComponent(name), "✨", "Lilith")
+            );
+          });
+        }
+        if (userImages.length) {
+          const h = document.createElement("h3");
+          h.className = "gallery-header";
+          h.textContent = "🎨 Твои фото";
+          el("gallery").appendChild(h);
+          userImages.forEach(function (img) {
+            el("gallery").appendChild(
+              galleryCard(
+                "/api/gallery/image/" + img.id,
+                (img.created_at || "").replace("T", " ").slice(0, 16),
+                "Lilith"
+              )
+            );
+          });
+        }
+      })
+      .catch(function () { el("gallery").innerHTML = '<p class="hint">Не удалось загрузить</p>'; });
   }
 
   function loadDiary() {
@@ -400,6 +532,8 @@
   });
 
   renderChips();
+  renderScenes();
+  loadStats();
 
   api("/api/me")
     .then(function (d) {

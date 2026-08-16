@@ -36,11 +36,16 @@
 
   <nav id="mini-nav">
     <button class="tab active" data-tab="chat">💬<span>Чат</span></button>
+    <button class="tab" data-tab="scenes">🎭<span>Сцены</span></button>
     <button class="tab" data-tab="diary">📖<span>Дневник</span></button>
-    <button class="tab" data-tab="settings">⚙️<span>Настройки</span></button>
     <button class="tab" data-tab="gallery">🖼<span>Галерея</span></button>
-    <button class="tab" data-tab="memory">🧠<span>Память</span></button>
+    <button class="tab" data-tab="settings">⚙️<span>Ещё</span></button>
   </nav>
+
+  <section id="tab-scenes" class="panel">
+    <h2>🎭 Сцены</h2>
+    <div id="scenes"><p class="hint">Загрузка…</p></div>
+  </section>
 
   <section id="tab-diary" class="panel">
     <h2>📖 Дневник Лилит</h2>
@@ -89,6 +94,15 @@
     <button id="generate-outfit" class="primary">🎨 Сгенерировать образ в этом наряде</button>
     <button id="save" class="primary">💾 Сохранить настройки</button>
     <div id="save-msg"></div>
+
+    <h2 style="margin-top:18px">💜 О нас</h2>
+    <div id="stats"><p class="hint">Загрузка…</p></div>
+
+    <h2 style="margin-top:18px">🏆 Достижения</h2>
+    <div id="achievements"><p class="hint">Загрузка…</p></div>
+
+    <h2 style="margin-top:18px">🧠 Память</h2>
+    <div id="memory"><p class="hint">Загрузка…</p></div>
   </section>
 
   <section id="tab-gallery" class="panel">
@@ -96,10 +110,6 @@
     <div id="gallery" class="grid"><p class="hint">Загрузка…</p></div>
   </section>
 
-  <section id="tab-memory" class="panel">
-    <h2>🧠 Память</h2>
-    <div id="memory"><p class="hint">Загрузка…</p></div>
-  </section>
 </div>
 
 <script src="/app.js"></script>

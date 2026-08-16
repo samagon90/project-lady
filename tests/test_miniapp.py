@@ -247,3 +247,47 @@ def test_miniapp_avatar_anime_files_exist() -> None:
     for emo in ("neutral", "passion", "flirt", "playful", "shy", "happy",
                 "excited", "tender", "sad", "angry"):
         assert (folder / f"lilith_{emo}_anime_lingerie.png").exists(), f"нет {emo} anime lingerie"
+
+
+async def test_miniapp_gallery_static(ctx) -> None:
+    """Статичная галерея: список образов + отдача файла."""
+    import hashlib
+    import hmac
+    import json as _json
+    import urllib.parse
+
+    from src.miniapp_server import MiniAppServer
+
+    token = "123:TESTTOKEN"
+    await onboard(ctx, 7778, nsfw=True)
+    server = MiniAppServer(ctx.db, token)
+
+    user_json = _json.dumps({"id": 7778, "first_name": "T", "is_bot": False})
+    pairs = [("user", user_json), ("auth_date", "1700000000")]
+    data_check = "\n".join(f"{k}={v}" for k, v in sorted(pairs))
+    secret = hmac.new(b"WebAppData", token.encode(), hashlib.sha256).digest()
+    digest = hmac.new(secret, data_check.encode(), hashlib.sha256).hexdigest()
+    init = urllib.parse.urlencode(pairs + [("hash", digest)])
+
+    class _Req:
+        headers = {"x-init-data": init}
+        match_info: dict = {}
+
+        def __init__(self, name: str | None = None):
+            self.match_info = {"name": name} if name else {}
+
+        async def json(self):
+            return {}
+
+    resp = await server._api_gallery_static(_Req())
+    assert resp.status == 200, resp.body
+    data = _json.loads(resp.body)
+    assert len(data["images"]) >= 40, "в assets/gallery должно быть 40+ образов"
+    assert any(name.startswith("lilith_v2_") for name in data["images"])
+
+    # Отдача файла
+    resp2 = await server._api_gallery_static_image(_Req("lilith_v2_01_red_lace_bed.png"))
+    assert resp2.status == 200, resp2.body
+    # Защита от path traversal
+    resp3 = await server._api_gallery_static_image(_Req("../config.py"))
+    assert resp3.status == 404

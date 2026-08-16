@@ -55,6 +55,7 @@ class User(Base):
     assets: Mapped[list[GeneratedAsset]] = relationship(back_populates="user", cascade="all, delete-orphan")
     audit_events: Mapped[list[AuditEvent]] = relationship(back_populates="user", cascade="all, delete-orphan")
     diary_entries: Mapped[list[DiaryEntry]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    achievements: Mapped[list[Achievement]] = relationship(back_populates="user", cascade="all, delete-orphan")
 
 
 class UserPreferences(Base):
@@ -90,6 +91,12 @@ class UserPreferences(Base):
     # Уровень растёт от XP за сообщения: 1 Знакомство, 2 Дружба, 3 Лёгкий
     # флирт, 4 Романтика, 5 Страсть, 6 Любовь, 7 Родные души.
     xp: Mapped[int] = mapped_column(Integer, default=0)
+    # --- Ежедневный стрик (как в топовых Mini App): серия дней общения ---
+    # streak — дней подряд; last_active_date — последний день (YYYY-MM-DD);
+    # max_streak — рекордная серия.
+    streak: Mapped[int] = mapped_column(Integer, default=0)
+    max_streak: Mapped[int] = mapped_column(Integer, default=0)
+    last_active_date: Mapped[str | None] = mapped_column(String(10), nullable=True)
 
     # --- Настройка «живости» ответов (как в open-character-ai) ---
     # creativity: 0 = спокойная, 1 = стандарт, 2 = дерзкая/игривая
@@ -118,6 +125,23 @@ class DiaryEntry(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
     user: Mapped[User] = relationship(back_populates="diary_entries")
+
+
+class Achievement(Base):
+    """Достижения (как в топовых Mini App / играх): выдаются за вехи —
+    первое сообщение, серия дней, уровень, первое фото и т.п."""
+
+    __tablename__ = "achievements"
+    __table_args__ = (Index("ix_ach_user_code", "telegram_user_id", "code"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    telegram_user_id: Mapped[int] = mapped_column(BigInteger, index=True)
+    code: Mapped[str] = mapped_column(String(48))
+    title: Mapped[str] = mapped_column(String(128))
+    unlocked_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    user: Mapped[User] = relationship(back_populates="achievements")
 
 
 class UserConsent(Base):

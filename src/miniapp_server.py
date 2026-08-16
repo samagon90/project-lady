@@ -19,12 +19,14 @@ from aiohttp import web
 
 from src.database.base import Database
 from src.database.repositories import (
+    AchievementRepository,
     AssetRepository,
     DiaryRepository,
     MemoryRepository,
     PreferencesRepository,
     UserRepository,
 )
+from src.utils import utcnow
 
 logger = logging.getLogger(__name__)
 
@@ -97,6 +99,9 @@ class MiniAppServer:
         self.app.router.add_post("/api/chat/alternatives", self._api_chat_alternatives)
         self.app.router.add_get("/api/diary", self._api_diary)
         self.app.router.add_get("/api/history", self._api_history)
+        self.app.router.add_get("/api/achievements", self._api_achievements)
+        self.app.router.add_get("/api/gallery/static", self._api_gallery_static)
+        self.app.router.add_get("/api/gallery/static/image/{name}", self._api_gallery_static_image)
 
     # ------------------------------------------------------------- static
 
@@ -250,6 +255,14 @@ class MiniAppServer:
         from src.services.chat import level_name, level_progress
 
         level, xp_to_next, progress = level_progress(prefs.xp or 0)
+        # Статистика отношений (отдельная сессия — НЕ вложенная, иначе SQLite «locked»)
+        from src.database.repositories import MessageRepository
+
+        async with self.db.session() as session:
+            messages_total = await MessageRepository(session).count_user_messages(user.id)
+        days_together = 1
+        if user.first_seen_at is not None:
+            days_together = max(1, (utcnow().date() - user.first_seen_at.date()).days + 1)
         return web.json_response(
             {
                 "telegram_user_id": uid,
@@ -269,6 +282,10 @@ class MiniAppServer:
                 "level_progress": round(progress, 3),
                 "creativity": prefs.creativity,
                 "response_length": prefs.response_length,
+                "streak": prefs.streak or 0,
+                "max_streak": prefs.max_streak or 0,
+                "days_together": days_together,
+                "messages_total": messages_total,
             }
         )
 
@@ -524,7 +541,55 @@ class MiniAppServer:
         response_body: dict = {"reply": result.text, "emotion": emotion, "stage": stage}
         if getattr(result, "level_up", None):
             response_body["level_up"] = result.level_up
+        if getattr(result, "streak_text", None):
+            response_body["streak_text"] = result.streak_text
+        if getattr(result, "achievements", None):
+            response_body["achievements"] = result.achievements
         return web.json_response(response_body)
+
+    async def _api_achievements(self, request: web.Request) -> web.Response:
+        """Список полученных достижений (геймификация)."""
+        uid = self._user_id(request)
+        if uid is None:
+            return web.json_response({"error": "unauthorized"}, status=401)
+        async with self.db.session() as session:
+            user = await UserRepository(session).get_by_telegram_id(uid)
+            if user is None:
+                return web.json_response({"error": "not_registered"}, status=404)
+            items = await AchievementRepository(session).list_for_user(user.id)
+        return web.json_response(
+            {
+                "items": [
+                    {"code": a.code, "title": a.title,
+                     "unlocked_at": a.unlocked_at.isoformat() if a.unlocked_at else None}
+                    for a in items
+                ]
+            }
+        )
+
+    async def _api_gallery_static(self, request: web.Request) -> web.Response:
+        """Список встроенных образов Лилит из assets/gallery (для галереи)."""
+        uid = self._user_id(request)
+        if uid is None:
+            return web.json_response({"error": "unauthorized"}, status=401)
+        gallery_dir = Path(__file__).resolve().parents[1] / "assets" / "gallery"  # noqa: ASYNC240
+        if not gallery_dir.exists():  # noqa: ASYNC240
+            return web.json_response({"images": []})
+        names = sorted(p.name for p in gallery_dir.glob("lilith_*.png"))
+        return web.json_response({"images": names})
+
+    async def _api_gallery_static_image(self, request: web.Request) -> web.StreamResponse:
+        """Отдаёт встроенный образ Лилит по имени файла (только lilith_*.png)."""
+        uid = self._user_id(request)
+        if uid is None:
+            return web.json_response({"error": "unauthorized"}, status=401)
+        name = request.match_info.get("name", "")
+        if not name.endswith(".png") or ".." in name or not name.startswith("lilith_"):
+            return web.Response(status=404, text="not found")
+        path = Path(__file__).resolve().parents[1] / "assets" / "gallery" / name  # noqa: ASYNC240
+        if not path.exists():  # noqa: ASYNC240
+            return web.Response(status=404, text="not found")
+        return web.FileResponse(path)
 
     # ------------------------------------------------------------- lifecycle
 
@@ -544,10 +609,53 @@ class MiniAppServer:
 
 
 def _detect_emotion_and_stage(text: str) -> tuple[str, int]:
-    """Определяет эмоцию Лилит и стадию «раскованности» (1-4) по тексту."""
+    """Определяет эмоцию Лилит и стадию «раскованности» (1-4) по тексту.
+
+    v2.0: эмодзи и интонации — чтобы картинка менялась почти каждый раз.
+    """
     import re as _re
 
     t = text.lower()
+    _emoji = [
+        (r'😈|🔥|💋|👅|🫦|😏', "passion"),
+        (r'💗|🥰|💖|😍|❤️', "tender"),
+        (r'😭|🥺|💔|😢', "crying"),
+        (r'😡|🤬|👿', "angry"),
+        (r'😳|🫣|🥵', "shy"),
+        (r'😱|😨|🫨', "scared"),
+        (r'😴|🥱', "sleepy"),
+        (r'🤔|🧐', "thinking"),
+        (r'😮|😲|🤯', "surprised"),
+        (r'😊|😄|😁|🥳|🎉', "happy"),
+        (r'😂|🤣|😜|😝', "playful"),
+        (r'😒|🙄|💅', "contempt"),
+        (r'🤢|🤮', "disgust"),
+        (r'😌|🕊', "relief"),
+    ]
+    for pat, emo in _emoji:
+        if _re.search(pat, t):
+            emotion = emo
+            break
+    else:
+        emotion = _detect_emotion_words(t)
+    # Раскованность: растёт с взрослым/интимным контекстом
+    if _re.search(r'раздев|сними|гол|обнаж|голая|топлес', t):
+        stage = 4
+    elif _re.search(r'секс|трах|постел|член|киск|мин', t):
+        stage = 3
+    elif _re.search(r'страст|эрот|хочу|поцелуй|жела|возбужд', t):
+        stage = 2
+    else:
+        stage = 1
+    return emotion, stage
+
+
+def _detect_emotion_words(t: str) -> str:
+    """Словарный детектор эмоций (без эмодзи)."""
+    import re as _re
+
+    if _re.search(r'облегч|фух|слава богу|наконец-то спокойно|выдох', t):
+        return "relief"
     if _re.search(r'фу|отврат|гадость|противн|мерзост', t):
         emotion = "disgust"
     elif _re.search(r'презр|высокомер|снисход|фырк', t):
@@ -592,14 +700,11 @@ def _detect_emotion_and_stage(text: str) -> tuple[str, int]:
         emotion = "flirt"
     else:
         emotion = "neutral"
-    # Раскованность: растёт с взрослым/интимным контекстом
-    if _re.search(r'раздев|сними|гол|обнаж|голая|топлес', t):
-        stage = 4
-    elif _re.search(r'секс|трах|постел|член|киск|мин', t):
-        stage = 3
-    elif _re.search(r'страст|эрот|хочу|поцелуй|жела|возбужд', t):
-        stage = 2
-    else:
-        stage = 1
-    return emotion, stage
+    # Интонации
+    if emotion == "neutral":
+        if _re.search(r'!{2,}', t):
+            return "excited"
+        if _re.search(r'\?{1,}', t) and len(t) < 200:
+            return "thinking"
+    return emotion
 

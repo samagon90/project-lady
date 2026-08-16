@@ -13,6 +13,7 @@ from sqlalchemy import CursorResult, delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database.models import (
+    Achievement,
     AuditEvent,
     Conversation,
     ConversationSummary,
@@ -561,3 +562,47 @@ class DiaryRepository:
 
     async def has_entry_for_date(self, user_id: int, entry_date: str) -> bool:
         return await self.get_for_date(user_id, entry_date) is not None
+
+
+class AchievementRepository:
+    """Достижения пользователя (геймификация)."""
+
+    def __init__(self, session: AsyncSession) -> None:
+        self.session = session
+
+    async def has(self, user_id: int, code: str) -> bool:
+        result = await self.session.execute(
+            select(Achievement).where(
+                Achievement.user_id == user_id,
+                Achievement.code == code,
+            )
+        )
+        return result.scalar_one_or_none() is not None
+
+    async def add(self, user: User, code: str, title: str) -> Achievement | None:
+        if await self.has(user.id, code):
+            return None
+        item = Achievement(
+            user_id=user.id,
+            telegram_user_id=user.telegram_user_id,
+            code=code,
+            title=title,
+        )
+        self.session.add(item)
+        await self.session.flush()
+        return item
+
+    async def list_for_user(self, user_id: int, limit: int = 50) -> list[Achievement]:
+        result = await self.session.execute(
+            select(Achievement)
+            .where(Achievement.user_id == user_id)
+            .order_by(Achievement.unlocked_at.desc())
+            .limit(limit)
+        )
+        return list(result.scalars().all())
+
+    async def count_for_user(self, user_id: int) -> int:
+        result = await self.session.execute(
+            select(func.count(Achievement.id)).where(Achievement.user_id == user_id)
+        )
+        return int(result.scalar_one())

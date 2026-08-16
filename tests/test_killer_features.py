@@ -288,3 +288,94 @@ async def _user(ctx: AppContext, tg_id: int):
 
     async with ctx.db.session() as session:
         return await UserRepository(session).get_by_telegram_id(tg_id)
+
+
+# ---------------------------------------------------------------------------
+# v2.0: стрики (серия дней) и достижения
+# ---------------------------------------------------------------------------
+
+
+async def test_streak_first_message(ctx: AppContext, dp, bot, fake_llm: FakeLLM) -> None:
+    """Первое сообщение сегодня — стрик = 1."""
+    await onboard(ctx, 8001)
+    fake_llm.default_reply = "Привет!"
+    await dp.feed_update(bot, make_update_message(8001, tg_user(8001, "A"), "привет"))
+    async with ctx.db.session() as session:
+        prefs = await PreferencesRepository(session).get_or_create(await _user(ctx, 8001))
+        assert prefs.streak == 1
+        assert prefs.max_streak == 1
+        assert prefs.last_active_date is not None
+
+
+async def test_streak_continues_next_day(ctx: AppContext) -> None:
+    """Если вчера был диалог, а сегодня новый — стрик растёт."""
+    from datetime import timedelta
+
+    from src.utils import utcnow
+
+    await onboard(ctx, 8002)
+    user = await _user(ctx, 8002)
+    yesterday = (utcnow() - timedelta(days=1)).strftime("%Y-%m-%d")
+    async with ctx.db.session() as session:
+        await PreferencesRepository(session).update_fields(
+            user, streak=5, max_streak=5, last_active_date=yesterday
+        )
+    streak, text = await ctx.chat._update_streak(user)
+    assert streak == 6
+    assert text is None  # 6 — не юбилей
+    async with ctx.db.session() as session:
+        prefs = await PreferencesRepository(session).get_or_create(user)
+        assert prefs.max_streak == 6
+
+
+async def test_streak_week_milestone_text(ctx: AppContext) -> None:
+    """7-й день подряд — поздравление."""
+    from datetime import timedelta
+
+    from src.utils import utcnow
+
+    await onboard(ctx, 8003)
+    user = await _user(ctx, 8003)
+    yesterday = (utcnow() - timedelta(days=1)).strftime("%Y-%m-%d")
+    async with ctx.db.session() as session:
+        await PreferencesRepository(session).update_fields(
+            user, streak=6, last_active_date=yesterday
+        )
+    _streak, text = await ctx.chat._update_streak(user)
+    assert text is not None
+    assert "Неделя" in text or "неделя" in text
+
+
+async def test_streak_broken_after_gap(ctx: AppContext) -> None:
+    """Пропуск дня сбрасывает стрик на 1."""
+    from datetime import timedelta
+
+    from src.utils import utcnow
+
+    await onboard(ctx, 8004)
+    user = await _user(ctx, 8004)
+    three_days_ago = (utcnow() - timedelta(days=3)).strftime("%Y-%m-%d")
+    async with ctx.db.session() as session:
+        await PreferencesRepository(session).update_fields(
+            user, streak=10, max_streak=10, last_active_date=three_days_ago
+        )
+    streak, _text = await ctx.chat._update_streak(user)
+    assert streak == 1  # серия сброшена, но рекорд остался
+    async with ctx.db.session() as session:
+        prefs = await PreferencesRepository(session).get_or_create(user)
+        assert prefs.max_streak == 10
+
+
+async def test_first_message_achievement(ctx: AppContext, dp, bot, fake_llm: FakeLLM) -> None:
+    """Первое сообщение выдаёт достижение «Первое слово»."""
+    await onboard(ctx, 8005)
+    fake_llm.default_reply = "Привет, дорогой!"
+    await dp.feed_update(bot, make_update_message(8005, tg_user(8005, "B"), "привет"))
+    all_texts = " ".join(bot.texts())
+    assert "Первое слово" in all_texts or "достижение" in all_texts.lower()
+    async with ctx.db.session() as session:
+        from src.database.repositories import AchievementRepository
+
+        ach = await AchievementRepository(session).list_for_user((await _user(ctx, 8005)).id)
+        codes = [a.code for a in ach]
+        assert "first_message" in codes

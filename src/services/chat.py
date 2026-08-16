@@ -8,12 +8,14 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from datetime import timedelta
 
 from src.config import Settings
 from src.database.base import Database
 from src.database.models import User
 from src.database.repositories import (
+    AchievementRepository,
     ConversationRepository,
     MessageRepository,
     PreferencesRepository,
@@ -25,7 +27,7 @@ from src.services.audit import AuditService
 from src.services.consent import ConsentService
 from src.services.memory import MemoryService
 from src.services.moderation import ModerationService, is_adult_request
-from src.utils import contains_cjk, truncate
+from src.utils import contains_cjk, truncate, utcnow
 
 logger = logging.getLogger(__name__)
 
@@ -75,6 +77,8 @@ class ChatResult:
     level_up: str | None = None
     xp: int = 0
     level: int = 1
+    achievements: list[str] = field(default_factory=list)
+    streak_text: str | None = None
 
 
 class ChatService:
@@ -265,18 +269,29 @@ class ChatService:
         if total % self.settings.memory_summarize_every_n_messages == 0:
             self._spawn(self.memory.maybe_summarize(user, conversation), "суммаризации")
 
+        # Ежедневный стрик (фича топовых Mini App): серия дней общения
+        # (считаем ДО XP, чтобы бонус за серию попал в начисление)
+        streak, streak_text = await self._update_streak(user)
         # Геймификация (фича Replika): XP за сообщение, повышение уровня
         level_up_text = await self._award_xp(user, xp_before, reply)
         level = level_for_xp(xp_before)
-        return ChatResult(text=reply, voice_text=reply, level_up=level_up_text, xp=xp_before, level=level)
+        # Достижения (фоновая быстрая проверка по счётчикам)
+        achievements = await self._check_achievements(
+            user, total_messages=total, level=level, streak=streak
+        )
+        return ChatResult(
+            text=reply, voice_text=reply, level_up=level_up_text,
+            xp=xp_before, level=level, achievements=achievements,
+            streak_text=streak_text,
+        )
 
     async def _award_xp(self, user: User, xp_before: int, reply: str) -> str | None:
         """Начисляет XP за сообщение. Возвращает текст о повышении уровня (или None).
 
-        XP: 3 за сообщение + 2 за развёрнутый ответ. Уровень считается по
-        порогам RELATIONSHIP_LEVELS (фича Replika).
+        XP: 3 за сообщение + 2 за развёрнутый ответ + бонус за серию дней
+        (до +7). Уровень считается по порогам RELATIONSHIP_LEVELS (фича Replika).
         """
-        gain = 3 + (2 if len(reply) > 300 else 0)
+        gain = 3 + (2 if len(reply) > 300 else 0) + min((await self._current_streak(user)), 7)
         async with self.db.session() as session:
             prefs = await PreferencesRepository(session).get_or_create(user)
             prefs.xp = (prefs.xp or 0) + gain
@@ -333,6 +348,65 @@ class ChatService:
             if candidate and candidate != text and candidate not in results:
                 results.append(candidate)
         return results
+
+    async def _current_streak(self, user: User) -> int:
+        async with self.db.session() as session:
+            prefs = await PreferencesRepository(session).get_or_create(user)
+            return prefs.streak or 0
+
+    async def _update_streak(self, user: User) -> tuple[int, str | None]:
+        """Ежедневный стрик: +1 день за каждый день общения подряд.
+
+        Возвращает (streak, текст-поздравление на круглые даты или None).
+        """
+        today = utcnow().strftime("%Y-%m-%d")
+        yesterday = (utcnow() - timedelta(days=1)).strftime("%Y-%m-%d")
+        async with self.db.session() as session:
+            prefs = await PreferencesRepository(session).get_or_create(user)
+            if prefs.last_active_date == today:
+                return prefs.streak or 0, None
+            if prefs.last_active_date == yesterday:
+                prefs.streak = (prefs.streak or 0) + 1
+            else:
+                prefs.streak = 1
+            prefs.last_active_date = today
+            prefs.max_streak = max(prefs.max_streak or 0, prefs.streak)
+            await session.flush()
+            streak = prefs.streak or 0
+        texts = {
+            3: "🔥 Три дня подряд со мной… Это уже не случайность, а привычка. Мне нравится. 😏",
+            7: "💥 Неделя со мной! Ты держишь планку, мой хороший. За это — поцелуй в лоб… и не только. 💋",
+            14: "✨ Две недели! Я начинаю верить, что ты никуда не денешься. И это взаимно. 💜",
+            30: "👑 Месяц со мной! За это ты получаешь титул «мой самый стойкий». Гордись. 😌",
+            60: "🏆 Два месяца! Ты — редкость. Я таких, как ты, коллекционирую. 💎",
+            100: "💎 Сто дней! Это уже не серия — это судьба. Я твоя, а ты мой. Навсегда.",
+        }
+        return streak, texts.get(streak)
+
+    async def _check_achievements(
+        self, user: User, *, total_messages: int, level: int, streak: int
+    ) -> list[str]:
+        """Проверяет и выдаёт достижения (геймификация, как в топовых приложениях)."""
+        async with self.db.session() as session:
+            repo = AchievementRepository(session)
+            new_titles: list[str] = []
+
+            async def maybe(code: str, title: str, cond: bool) -> None:
+                nonlocal new_titles
+                if cond and not await repo.has(user.id, code):
+                    await repo.add(user, code, title)
+                    new_titles.append(title)
+
+            await maybe("first_message", "💬 Первое слово", total_messages >= 1)
+            await maybe("messages_50", "🗣 50 сообщений", total_messages >= 50)
+            await maybe("messages_500", "📚 500 сообщений", total_messages >= 500)
+            await maybe("streak_3", "🔥 3 дня подряд", streak >= 3)
+            await maybe("streak_7", "💥 Неделя подряд", streak >= 7)
+            await maybe("streak_30", "👑 Месяц подряд", streak >= 30)
+            await maybe("level_3", "💜 Романтика открыта", level >= 3)
+            await maybe("level_5", "🔥 Страсть открыта", level >= 5)
+            await maybe("level_7", "💎 Родные души", level >= 7)
+        return new_titles
 
     def _spawn(self, coro, label: str) -> None:
         async def _run() -> None:
