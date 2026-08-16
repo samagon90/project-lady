@@ -339,6 +339,12 @@ async def _send_reply_with_avatar(
     from pathlib import Path
 
     emotion = _detect_reply_emotion(reply)
+    # v2.1: если эмоция не определилась — Лилит «живая»: выбираем случайное
+    # настроение, чтобы фото менялось при КАЖДОМ ответе, а не повторялось.
+    if emotion == "neutral":
+        import random as _random
+
+        emotion = _random.choice(("flirt", "playful", "happy", "thinking", "tender"))
     async with app_ctx.db.session() as session:
         prefs = await PreferencesRepository(session).get_or_create(user)
     style = "anime" if prefs.image_style == "anime" else "realistic"

@@ -397,3 +397,47 @@ button.primary:disabled { opacity: 0.6; }
   font-size: 13px;
   margin: 6px 0 2px;
 }
+
+/* ===== Панель эмоций (v2.1) ===== */
+.emotion-panel {
+  position: absolute;
+  top: 60px;
+  right: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-width: 200px;
+  background: rgba(18, 7, 15, 0.95);
+  border: 1px solid #55304a;
+  border-radius: 14px;
+  padding: 8px;
+  z-index: 10;
+}
+
+.emotion-btn {
+  width: 34px;
+  height: 34px;
+  font-size: 17px;
+  border: 1px solid #33192b;
+  border-radius: 10px;
+  background: #1e0f1a;
+  cursor: pointer;
+}
+
+.emotion-btn:active { background: #33192b; }
+
+/* ===== Кнопка «Надеть» в галерее (v2.1) ===== */
+.wear-btn {
+  width: 100%;
+  margin-top: 6px;
+  padding: 7px;
+  border: 1px solid #55304a;
+  border-radius: 10px;
+  background: #160a13;
+  color: var(--text);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.wear-btn:active { background: #33192b; }
+.wear-btn:disabled { opacity: 0.6; }

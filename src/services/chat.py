@@ -271,9 +271,13 @@ class ChatService:
 
         # Ежедневный стрик (фича топовых Mini App): серия дней общения
         # (считаем ДО XP, чтобы бонус за серию попал в начисление)
-        streak, streak_text = await self._update_streak(user)
-        # Геймификация (фича Replika): XP за сообщение, повышение уровня
-        level_up_text = await self._award_xp(user, xp_before, reply)
+        streak, streak_text, first_today = await self._update_streak(user)
+        # Геймификация (фича Replika): XP за сообщение, повышение уровня.
+        # Ежедневная награда (v2.1): первое сообщение дня — +10 XP.
+        daily_bonus = 10 if first_today else 0
+        level_up_text = await self._award_xp(
+            user, xp_before, reply, daily_bonus=daily_bonus
+        )
         level = level_for_xp(xp_before)
         # Достижения (фоновая быстрая проверка по счётчикам)
         achievements = await self._check_achievements(
@@ -285,13 +289,14 @@ class ChatService:
             streak_text=streak_text,
         )
 
-    async def _award_xp(self, user: User, xp_before: int, reply: str) -> str | None:
+    async def _award_xp(self, user: User, xp_before: int, reply: str, *, daily_bonus: int = 0) -> str | None:
         """Начисляет XP за сообщение. Возвращает текст о повышении уровня (или None).
 
         XP: 3 за сообщение + 2 за развёрнутый ответ + бонус за серию дней
-        (до +7). Уровень считается по порогам RELATIONSHIP_LEVELS (фича Replika).
+        (до +7) + ежедневная награда (v2.1). Уровень считается по порогам
+        RELATIONSHIP_LEVELS (фича Replika).
         """
-        gain = 3 + (2 if len(reply) > 300 else 0) + min((await self._current_streak(user)), 7)
+        gain = 3 + (2 if len(reply) > 300 else 0) + min((await self._current_streak(user)), 7) + daily_bonus
         async with self.db.session() as session:
             prefs = await PreferencesRepository(session).get_or_create(user)
             prefs.xp = (prefs.xp or 0) + gain
@@ -354,17 +359,19 @@ class ChatService:
             prefs = await PreferencesRepository(session).get_or_create(user)
             return prefs.streak or 0
 
-    async def _update_streak(self, user: User) -> tuple[int, str | None]:
+    async def _update_streak(self, user: User) -> tuple[int, str | None, bool]:
         """Ежедневный стрик: +1 день за каждый день общения подряд.
 
-        Возвращает (streak, текст-поздравление на круглые даты или None).
+        Возвращает (streak, текст-поздравление на круглые даты или None,
+        первое_сообщение_дня — для ежедневной награды).
         """
         today = utcnow().strftime("%Y-%m-%d")
         yesterday = (utcnow() - timedelta(days=1)).strftime("%Y-%m-%d")
         async with self.db.session() as session:
             prefs = await PreferencesRepository(session).get_or_create(user)
             if prefs.last_active_date == today:
-                return prefs.streak or 0, None
+                return prefs.streak or 0, None, False
+            first_today = True
             if prefs.last_active_date == yesterday:
                 prefs.streak = (prefs.streak or 0) + 1
             else:
@@ -381,7 +388,7 @@ class ChatService:
             60: "🏆 Два месяца! Ты — редкость. Я таких, как ты, коллекционирую. 💎",
             100: "💎 Сто дней! Это уже не серия — это судьба. Я твоя, а ты мой. Навсегда.",
         }
-        return streak, texts.get(streak)
+        return streak, texts.get(streak), first_today
 
     async def _check_achievements(
         self, user: User, *, total_messages: int, level: int, streak: int

@@ -320,7 +320,7 @@ async def test_streak_continues_next_day(ctx: AppContext) -> None:
         await PreferencesRepository(session).update_fields(
             user, streak=5, max_streak=5, last_active_date=yesterday
         )
-    streak, text = await ctx.chat._update_streak(user)
+    streak, text, _first = await ctx.chat._update_streak(user)
     assert streak == 6
     assert text is None  # 6 — не юбилей
     async with ctx.db.session() as session:
@@ -341,7 +341,7 @@ async def test_streak_week_milestone_text(ctx: AppContext) -> None:
         await PreferencesRepository(session).update_fields(
             user, streak=6, last_active_date=yesterday
         )
-    _streak, text = await ctx.chat._update_streak(user)
+    _streak, text, _first = await ctx.chat._update_streak(user)
     assert text is not None
     assert "Неделя" in text or "неделя" in text
 
@@ -359,7 +359,7 @@ async def test_streak_broken_after_gap(ctx: AppContext) -> None:
         await PreferencesRepository(session).update_fields(
             user, streak=10, max_streak=10, last_active_date=three_days_ago
         )
-    streak, _text = await ctx.chat._update_streak(user)
+    streak, _text, _first = await ctx.chat._update_streak(user)
     assert streak == 1  # серия сброшена, но рекорд остался
     async with ctx.db.session() as session:
         prefs = await PreferencesRepository(session).get_or_create(user)
@@ -379,3 +379,67 @@ async def test_first_message_achievement(ctx: AppContext, dp, bot, fake_llm: Fak
         ach = await AchievementRepository(session).list_for_user((await _user(ctx, 8005)).id)
         codes = [a.code for a in ach]
         assert "first_message" in codes
+
+
+# ---------------------------------------------------------------------------
+# v2.1: день рождения, ежедневная награда, время суток
+# ---------------------------------------------------------------------------
+
+
+async def test_birthday_in_context(ctx: AppContext) -> None:
+    """Если СЕГОДНЯ день рождения — в контексте появляется поздравление."""
+    from src.utils import utcnow
+
+    await onboard(ctx, 8101)
+    user = await _user(ctx, 8101)
+    today_md = utcnow().strftime("%m-%d")
+    async with ctx.db.session() as session:
+        await PreferencesRepository(session).update_fields(user, birthday=today_md)
+    mem = await ctx.memory.build_context(user, "привет")
+    assert "ДЕНЬ РОЖДЕНИЯ" in mem.block_text
+
+
+async def test_birthday_remembered_not_today(ctx: AppContext) -> None:
+    """Не в день рождения — Лилит просто помнит дату."""
+    await onboard(ctx, 8102)
+    user = await _user(ctx, 8102)
+    async with ctx.db.session() as session:
+        await PreferencesRepository(session).update_fields(user, birthday="01-01")
+    mem = await ctx.memory.build_context(user, "привет")
+    assert "ДЕНЬ РОЖДЕНИЯ" not in mem.block_text
+    assert "01-01" in mem.block_text
+
+
+async def test_daily_bonus_first_message(ctx: AppContext, dp, bot, fake_llm: FakeLLM) -> None:
+    """Первое сообщение дня даёт +10 XP (ежедневная награда)."""
+    await onboard(ctx, 8103)
+    user = await _user(ctx, 8103)
+    # Вчера был диалог — сегодня первое сообщение
+    from datetime import timedelta
+
+    from src.utils import utcnow
+
+    yesterday = (utcnow() - timedelta(days=1)).strftime("%Y-%m-%d")
+    async with ctx.db.session() as session:
+        await PreferencesRepository(session).update_fields(
+            user, streak=2, last_active_date=yesterday
+        )
+    fake_llm.default_reply = "Привет!"
+    await dp.feed_update(bot, make_update_message(8103, tg_user(8103, "C"), "привет"))
+    async with ctx.db.session() as session:
+        prefs = await PreferencesRepository(session).get_or_create(user)
+        # 3 (сообщение) + 3 (стрик стал 3 дня) + 10 (награда дня) = 16
+        assert prefs.xp == 16
+
+
+async def test_time_of_day_in_system_prompt() -> None:
+    """Системный промпт содержит подсказку о времени суток."""
+    from src.prompts import PromptLibrary
+
+    lib = PromptLibrary()
+    assert "{time_of_day}" in lib.system_template
+    # Хелпер возвращает осмысленный текст
+    from src.prompts import _time_of_day_hint
+
+    hint = _time_of_day_hint()
+    assert any(w in hint for w in ("утро", "день", "вечер", "ночь"))

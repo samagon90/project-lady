@@ -123,13 +123,29 @@ class PromptLibrary:
                 "\n=== ЖЕЛАЕМАЯ МАНЕРА РЕЧИ (выбрана собеседником — соблюдай строго) ===\n"
                 + ctx.speech_style
             )
+        time_of_day = _time_of_day_hint()
         return self.system_template.format(
             persona=self.persona,
             mode=_MODE_INSTRUCTIONS[mode],
             safety=self.safety_rules,
             mode_label=MODE_LABELS[mode],
             speech_style=speech,
+            time_of_day=time_of_day,
         )
+
+
+def _time_of_day_hint() -> str:
+    """Подсказка Лилит о времени суток (v2.1 — «осознание реальности», как Paradot)."""
+    from src.utils import utcnow
+
+    hour = utcnow().hour
+    if 5 <= hour < 12:
+        return "Сейчас утро. Ты только проснулась, нежная, чуть хриплая, тянешься в постели."
+    if 12 <= hour < 18:
+        return "Сейчас день. Ты бодрая, игривая, строишь планы на вечер."
+    if 18 <= hour < 23:
+        return "Сейчас вечер. Ты в настроении: свечи, вино, долгие разговоры и флирт."
+    return "Сейчас ночь. Ты томная, шёпотом, в полумраке — самое время для секретов и желаний."
 
 
 def load_prompt_library(settings: Settings | None = None) -> PromptLibrary:

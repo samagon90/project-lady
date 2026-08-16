@@ -162,6 +162,38 @@
     return rows.length ? rows[rows.length - 1] : null;
   }
 
+  // ============================== ПАНЕЛЬ ЭМОЦИЙ (v2.1) ==============================
+  // Тап по смайлику эмоции (угол аватара) открывает выбор настроения Лилит.
+  const EMOTION_ORDER = ["neutral","flirt","passion","playful","tender","serious",
+    "happy","sad","angry","surprised","shy","proud","jealous","bored","excited",
+    "sleepy","crying","scared","disgust","contempt","relief","thinking","confused"];
+
+  function buildEmotionPanel() {
+    const panel = document.createElement("div");
+    panel.id = "emotion-panel";
+    panel.className = "emotion-panel";
+    panel.style.display = "none";
+    EMOTION_ORDER.forEach(function (emotion) {
+      const btn = document.createElement("button");
+      btn.className = "emotion-btn";
+      btn.textContent = EMOTION_LABELS[emotion] || "😌";
+      btn.title = emotion;
+      btn.addEventListener("click", function () {
+        haptic();
+        setAvatar(emotion);
+        panel.style.display = "none";
+      });
+      panel.appendChild(btn);
+    });
+    document.getElementById("avatar-wrap").appendChild(panel);
+    const tag = el("emotion-tag");
+    if (tag) tag.style.cursor = "pointer";
+    if (tag) tag.addEventListener("click", function () {
+      haptic();
+      panel.style.display = panel.style.display === "none" ? "flex" : "none";
+    });
+  }
+
   // ============================== ОТПРАВКА ==============================
 
   let lastUserText = "";
@@ -332,6 +364,10 @@
 
   // ============================== НАСТРОЙКИ ==============================
 
+  function haptic() {
+    try { if (tg && tg.HapticFeedback) tg.HapticFeedback.impactOccurred("light"); } catch (e) { /* ignore */ }
+  }
+
   function fillSettings(d) {
     el("s-name").value = d.name || "";
     el("s-mode").value = String(d.mode);
@@ -340,6 +376,7 @@
     el("s-length").value = String(d.response_length != null ? d.response_length : 1);
     el("s-outfit").value = d.outfit || "";
     el("s-speech").value = d.speech_style || "";
+    el("s-birthday").value = d.birthday || "";
   }
 
   function fillLevel(d) {
@@ -364,6 +401,7 @@
       response_length: parseInt(el("s-length").value, 10),
       outfit: el("s-outfit").value.trim(),
       speech_style: el("s-speech").value.trim(),
+      birthday: el("s-birthday").value.trim(),
     });
     el("save").disabled = true;
     el("save-msg").textContent = "Сохраняю…";
@@ -448,9 +486,25 @@
           h.textContent = "✨ Образы Лилит";
           el("gallery").appendChild(h);
           staticImages.forEach(function (name) {
-            el("gallery").appendChild(
-              galleryCard("/api/gallery/static/image/" + encodeURIComponent(name), "✨", "Lilith")
-            );
+            const card = galleryCard("/api/gallery/static/image/" + encodeURIComponent(name), "✨", "Lilith");
+            const wear = document.createElement("button");
+            wear.className = "wear-btn";
+            wear.textContent = "👗 Надеть";
+            wear.addEventListener("click", function () {
+              haptic();
+              const pretty = name.replace(/^lilith_/, "").replace(/_/g, " ").replace(/\.png$/, "");
+              api("/api/settings", { method: "POST", body: JSON.stringify({ outfit: pretty }) })
+                .then(function (res) {
+                  if (res.ok) {
+                    wear.textContent = "✅ Надето";
+                    wear.disabled = true;
+                    el("s-outfit").value = pretty;
+                  }
+                })
+                .catch(function () { wear.textContent = "❌"; });
+            });
+            card.appendChild(wear);
+            el("gallery").appendChild(card);
           });
         }
         if (userImages.length) {
@@ -517,6 +571,18 @@
     });
   }
 
+  // ============================== ПОДЕЛИТЬСЯ (v2.1) ==============================
+  el("share-btn").addEventListener("click", function () {
+    haptic();
+    try {
+      if (tg) {
+        tg.openTelegramLink("https://t.me/share/url?url=" + encodeURIComponent("https://t.me/LilithCompanionBot") + "&text=" + encodeURIComponent("Познакомься с Лилит 🖤 Она ждёт именно тебя"));
+      } else {
+        window.open("https://t.me/share/url?url=" + encodeURIComponent("https://t.me/LilithCompanionBot") + "&text=" + encodeURIComponent("Познакомься с Лилит 🖤"), "_blank");
+      }
+    } catch (e) { /* ignore */ }
+  });
+
   // ============================== СТАРТ ==============================
 
   if (!window.Telegram || !window.Telegram.WebApp) {
@@ -534,6 +600,7 @@
   renderChips();
   renderScenes();
   loadStats();
+  buildEmotionPanel();
 
   api("/api/me")
     .then(function (d) {

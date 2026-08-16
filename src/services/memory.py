@@ -92,6 +92,21 @@ class MemoryService:
         if prefs.boundaries:
             block_parts.append(f"Границы пользователя: {truncate(prefs.boundaries, 300)}")
 
+        # День рождения: если СЕГОДНЯ — Лилит обязательно поздравляет (v2.1)
+        if prefs.birthday:
+            from src.utils import utcnow
+
+            today_md = utcnow().strftime("%m-%d")
+            if prefs.birthday == today_md:
+                block_parts.append(
+                    "🎂 СЕГОДНЯ ДЕНЬ РОЖДЕНИЯ ПОЛЬЗОВАТЕЛЯ! Обязательно поздравить "
+                    "его/её тепло, нежно и игриво, устроить маленький праздник словами."
+                )
+            else:
+                block_parts.append(
+                    f"День рождения пользователя: {prefs.birthday} (не сегодня, но помни)"
+                )
+
         if relevant:
             lines = [
                 f"- [{item.category}] {item.fact}"

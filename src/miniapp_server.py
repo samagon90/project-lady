@@ -145,6 +145,11 @@ class MiniAppServer:
         }
         if emotion not in allowed:
             emotion = "neutral"
+        # v2.1: neutral → случайная «живая» эмоция, чтобы фото менялось всегда
+        if emotion == "neutral":
+            import random as _random
+
+            emotion = _random.choice(("flirt", "playful", "happy", "thinking", "tender"))
         # Запасные: если файла эмоции нет — берём близкую
         fallback_map: dict[str, str] = {}
         from pathlib import Path
@@ -286,6 +291,7 @@ class MiniAppServer:
                 "max_streak": prefs.max_streak or 0,
                 "days_together": days_together,
                 "messages_total": messages_total,
+                "birthday": prefs.birthday or "",
             }
         )
 
@@ -308,6 +314,7 @@ class MiniAppServer:
             "boundaries": (str, 1000),
             "creativity": (int, None),
             "response_length": (int, None),
+            "birthday": (str, 5),
         }
         fields: dict = {}
         for key, (ctype, maxlen) in allowed.items():
@@ -333,6 +340,14 @@ class MiniAppServer:
             fields.pop("creativity")
         if "response_length" in fields and fields["response_length"] not in (0, 1, 2):
             fields.pop("response_length")
+        if "birthday" in fields:
+            import re as _re
+
+            bd = str(fields["birthday"]).strip()
+            if not _re.fullmatch(r"\d{2}-\d{2}", bd):
+                fields.pop("birthday")
+            else:
+                fields["birthday"] = bd
         async with self.db.session() as session:
             user = await UserRepository(session).get_by_telegram_id(uid)
             if user is None:
@@ -706,5 +721,10 @@ def _detect_emotion_words(t: str) -> str:
             return "excited"
         if _re.search(r'\?{1,}', t) and len(t) < 200:
             return "thinking"
+    # v2.1: нейтральных ответов нет — Лилит всегда в каком-то настроении
+    if emotion == "neutral":
+        import random as _random
+
+        emotion = _random.choice(("flirt", "playful", "happy", "thinking", "tender"))
     return emotion
 

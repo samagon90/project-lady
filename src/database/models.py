@@ -97,6 +97,8 @@ class UserPreferences(Base):
     streak: Mapped[int] = mapped_column(Integer, default=0)
     max_streak: Mapped[int] = mapped_column(Integer, default=0)
     last_active_date: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    # День рождения пользователя (MM-DD) — Лилит помнит и поздравляет
+    birthday: Mapped[str | None] = mapped_column(String(5), nullable=True)
 
     # --- Настройка «живости» ответов (как в open-character-ai) ---
     # creativity: 0 = спокойная, 1 = стандарт, 2 = дерзкая/игривая
