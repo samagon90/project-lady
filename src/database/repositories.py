@@ -16,6 +16,7 @@ from src.database.models import (
     AuditEvent,
     Conversation,
     ConversationSummary,
+    DiaryEntry,
     GeneratedAsset,
     GenerationJob,
     MemoryItem,
@@ -199,6 +200,20 @@ class MessageRepository:
             .limit(limit)
         )
         return list(reversed(result.scalars().all()))
+
+    async def last_user_message(self, user_id: int, conversation_id: int) -> Message | None:
+        """Последнее сообщение пользователя (для функции «🔄 Другой ответ»)."""
+        result = await self.session.execute(
+            select(Message)
+            .where(
+                Message.user_id == user_id,
+                Message.conversation_id == conversation_id,
+                Message.role == "user",
+            )
+            .order_by(Message.id.desc())
+            .limit(1)
+        )
+        return result.scalar_one_or_none()
 
     async def count_user_messages(self, user_id: int) -> int:
         result = await self.session.execute(
@@ -508,3 +523,41 @@ class AuditRepository:
         self.session.add(event)
         await self.session.flush()
         return event
+
+
+class DiaryRepository:
+    """Записи дневника Лилит (фича Replika)."""
+
+    def __init__(self, session: AsyncSession) -> None:
+        self.session = session
+
+    async def add(self, user: User, entry_date: str, text: str) -> DiaryEntry:
+        entry = DiaryEntry(
+            user_id=user.id,
+            telegram_user_id=user.telegram_user_id,
+            entry_date=entry_date,
+            text=text,
+        )
+        self.session.add(entry)
+        await self.session.flush()
+        return entry
+
+    async def get_for_date(self, user_id: int, entry_date: str) -> DiaryEntry | None:
+        result = await self.session.execute(
+            select(DiaryEntry)
+            .where(DiaryEntry.user_id == user_id, DiaryEntry.entry_date == entry_date)
+            .limit(1)
+        )
+        return result.scalar_one_or_none()
+
+    async def list_recent(self, user_id: int, limit: int = 10) -> list[DiaryEntry]:
+        result = await self.session.execute(
+            select(DiaryEntry)
+            .where(DiaryEntry.user_id == user_id)
+            .order_by(DiaryEntry.entry_date.desc(), DiaryEntry.id.desc())
+            .limit(limit)
+        )
+        return list(result.scalars().all())
+
+    async def has_entry_for_date(self, user_id: int, entry_date: str) -> bool:
+        return await self.get_for_date(user_id, entry_date) is not None

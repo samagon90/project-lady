@@ -91,6 +91,9 @@
     const input = el("chat-input");
     const text = input.value.trim();
     if (!text) return;
+    lastUserText = text;
+    altIndex = -1;
+    altList = [];
     input.value = "";
     addMessage("user", text);
     // Лилит «думает»
@@ -101,6 +104,11 @@
         else addMessage("assistant", "…");
         // Лилит реагирует: меняет позу (эмоция) и раскованность (stage)
         if (res.emotion) setAvatar(res.emotion, res.stage || currentStage);
+        // Повышение уровня отношений (фича Replika)
+        if (res.level_up) {
+          var tag = el("level-tag");
+          if (tag) tag.textContent = "💜 " + res.level_up;
+        }
       })
       .catch(function (e) {
         addMessage("assistant", "… (модель не ответила: " + (e.message || "ошибка") + ")");
@@ -143,6 +151,29 @@
     setAvatar(currentEmotion);
   });
 
+  // ---- Свайпы: «🔄 Другой ответ» (фича Character.AI / SillyTavern)
+  let lastUserText = "";
+  let altIndex = -1;
+  let altList = [];
+
+  function doSwipe() {
+    if (!lastUserText) return;
+    const d = el("dialogue-text");
+    d.textContent = "…";
+    api("/api/chat/alternatives", { method: "POST", body: JSON.stringify({ text: lastUserText, n: 3 }) })
+      .then(function (res) {
+        if (!res.alternatives || !res.alternatives.length) throw new Error("нет вариантов");
+        altList = res.alternatives;
+        altIndex = (altIndex + 1) % altList.length;
+        addMessage("assistant", altList[altIndex]);
+      })
+      .catch(function (e) {
+        addMessage("assistant", "… (не получилось: " + (e.message || "ошибка") + ")");
+      });
+  }
+
+  el("swipe-btn").addEventListener("click", doSwipe);
+
   el("send-btn").addEventListener("click", sendChat);
   el("chat-input").addEventListener("keydown", function (e) { if (e.key === "Enter") sendChat(); });
 
@@ -158,6 +189,7 @@
       el("tab-" + tab).classList.add("active");
       if (tab === "gallery") loadGallery();
       if (tab === "memory") loadMemory();
+      if (tab === "diary") loadDiary();
     });
   });
 
@@ -166,8 +198,22 @@
     el("s-name").value = d.name || "";
     el("s-mode").value = String(d.mode);
     el("s-style").value = d.image_style || "realistic";
+    el("s-creativity").value = String(d.creativity != null ? d.creativity : 1);
+    el("s-length").value = String(d.response_length != null ? d.response_length : 1);
     el("s-outfit").value = d.outfit || "";
     el("s-speech").value = d.speech_style || "";
+  }
+
+  // Уровень отношений (фича Replika): плашка рядом с именем Лилит
+  function fillLevel(d) {
+    var tag = el("level-tag");
+    if (!tag) return;
+    var lvl = d.level || 1;
+    var name = d.level_name || "";
+    var xpToNext = d.xp_to_next || 0;
+    var progress = Math.round((d.level_progress || 0) * 100);
+    tag.textContent = "💜 " + lvl + "/7 " + name;
+    tag.title = "Уровень отношений: " + name + ". До следующего уровня: " + xpToNext + " XP (прогресс " + progress + "%)";
   }
 
   el("save").addEventListener("click", function () {
@@ -175,6 +221,8 @@
       name: el("s-name").value.trim(),
       mode: parseInt(el("s-mode").value, 10),
       image_style: el("s-style").value,
+      creativity: parseInt(el("s-creativity").value, 10),
+      response_length: parseInt(el("s-length").value, 10),
       outfit: el("s-outfit").value.trim(),
       speech_style: el("s-speech").value.trim(),
     });
@@ -215,6 +263,30 @@
     }).catch(function () { el("gallery").innerHTML = '<p class="hint">Не удалось загрузить</p>'; });
   }
 
+  function loadDiary() {
+    el("diary").innerHTML = '<p class="hint">Загрузка…</p>';
+    api("/api/diary").then(function (res) {
+      var entries = res.entries || [];
+      if (!entries.length) {
+        el("diary").innerHTML = '<p class="hint">Пока пусто. Лилит напишет первую запись вечером, после вашего разговора 💜</p>';
+        return;
+      }
+      el("diary").innerHTML = "";
+      entries.forEach(function (item) {
+        var card = document.createElement("div");
+        card.className = "diary-item";
+        var date = document.createElement("div");
+        date.className = "diary-date";
+        date.textContent = "📅 " + item.date;
+        var text = document.createElement("div");
+        text.textContent = item.text;
+        card.appendChild(date);
+        card.appendChild(text);
+        el("diary").appendChild(card);
+      });
+    }).catch(function () { el("diary").innerHTML = '<p class="hint">Не удалось загрузить</p>'; });
+  }
+
   function loadMemory() {
     el("memory").innerHTML = '<p class="hint">Загрузка…</p>';
     api("/api/memory").then(function (res) {
@@ -248,6 +320,7 @@
   api("/api/me")
     .then(function (d) {
       fillSettings(d);
+      fillLevel(d);
       currentStyle = d.image_style || "realistic";
       setAvatar("flirt");
       addMessage("assistant", "Ну привет, мой дорогой… Я уже заждалась. Что скажешь?");

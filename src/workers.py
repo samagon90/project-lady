@@ -250,6 +250,9 @@ def start_workers(
     tasks.append(asyncio.create_task(retention.run()))
     proactive = ProactiveWorker(ctx, bot, ctx.stop_event)
     tasks.append(asyncio.create_task(proactive.run()))
+    # Дневник Лилит (раз в час проверяет, кому пора писать запись)
+    diary_worker = DiaryWorker(ctx, ctx.stop_event)
+    tasks.append(asyncio.create_task(diary_worker.run()))
     # Воркер видео (1 поток — AnimateDiff тяжёлый)
     video_worker = VideoWorker(ctx.video_service.queue, ctx.video_service, ctx.db, bot, ctx.stop_event)
     tasks.append(asyncio.create_task(video_worker.run()))
@@ -285,3 +288,94 @@ async def stop_workers(tasks: list[asyncio.Task]) -> None:
     for task in tasks:
         task.cancel()
     await asyncio.gather(*tasks, return_exceptions=True)
+
+
+class DiaryWorker:
+    """Дневник Лилит (фича Replika): раз в день для каждого активного
+    пользователя Лилит пишет короткую запись в дневник по мотивам диалога.
+    Записи смотрит пользователь в Mini App (вкладка «📖») и по команде /diary.
+    """
+
+    def __init__(self, ctx, stop_event: asyncio.Event) -> None:
+        self.ctx = ctx
+        self.stop_event = stop_event
+        self._lock = asyncio.Lock()
+
+    async def run(self) -> None:
+        logger.info("Воркер дневника запущен (интервал 60 мин)")
+        while not self.stop_event.is_set():
+            try:
+                await asyncio.wait_for(self.stop_event.wait(), timeout=3600)
+                break
+            except TimeoutError:
+                pass
+            try:
+                await self.diary_once()
+            except Exception:  # noqa: BLE001
+                logger.exception("Ошибка генерации дневника")
+
+    async def diary_once(self) -> None:
+        today = utcnow().strftime("%Y-%m-%d")
+        # Все активные пользователи (прошедшие онбординг, не заблокированные)
+        from sqlalchemy import select
+
+        from src.database.models import User
+
+        async with self.db_session() as session:
+            result = await session.execute(
+                select(User).where(
+                    User.consent_step == "active",
+                    User.is_blocked.is_(False),
+                )
+            )
+            active = list(result.scalars().all())
+        for user in active:
+            try:
+                await self._write_for_user(user, today)
+            except Exception:  # noqa: BLE001
+                logger.exception("Дневник: ошибка для user %s", user.telegram_user_id)
+            await asyncio.sleep(1)
+
+    async def _write_for_user(self, user, today: str) -> None:
+        from src.database.repositories import (
+            ConversationRepository,
+            DiaryRepository,
+            MessageRepository,
+        )
+        from src.utils import truncate
+
+        async with self.db_session() as session:
+            diary = DiaryRepository(session)
+            if await diary.has_entry_for_date(user.id, today):
+                return
+            conversation = await ConversationRepository(session).get_active(user)
+            messages = await MessageRepository(session).recent(user.id, conversation.id, limit=20)
+        if not messages:
+            return
+        # Проверяем, что сегодня вообще был диалог (сообщения за последние 24ч)
+        now = utcnow()
+        today_messages = [
+            m for m in messages
+            if m.created_at is not None and (now - m.created_at).total_seconds() < 86400
+        ]
+        if not today_messages:
+            return
+        dialogue = "\n".join(f"{m.role}: {m.content}" for m in messages[-14:])
+        prompt = self.ctx.prompts.diary_prompt.format(dialogue=truncate(dialogue, 5000))
+        try:
+            raw = await self.ctx.llm.chat(
+                [{"role": "user", "content": prompt}], temperature=0.9, max_tokens=300
+            )
+        except Exception:  # noqa: BLE001
+            return
+        text = raw.strip().strip('"').strip()
+        if not text:
+            return
+        async with self.db_session() as session:
+            diary = DiaryRepository(session)
+            if not await diary.has_entry_for_date(user.id, today):
+                await diary.add(user, today, text[:1500])
+                logger.info("Дневник: запись для user %s сохранена", user.telegram_user_id)
+
+    def db_session(self):
+        return self.ctx.db.session()

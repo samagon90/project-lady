@@ -107,6 +107,18 @@ class MemoryService:
                 + "\n".join(f"- {truncate(s.summary, 400)}" for s in summaries)
             )
 
+        # Лорбук (книга мира Лилит): подмешиваем записи, чьи триггеры
+        # упомянул пользователь — как в SillyTavern/HammerAI. Это делает
+        # «мир» Лилит стабильным: дом, кот, музыка — всегда одни и те же.
+        from src.prompts import lorebook_for_query
+
+        lore = lorebook_for_query(self.prompts.lorebook_entries, query_text)
+        if lore:
+            block_parts.append(
+                "Твоя жизнь (вспомни и обыграй, если уместно):\n"
+                + "\n".join(f"- {entry['text']}" for entry in lore[:3])
+            )
+
         return MemoryContext(
             block_text="\n".join(block_parts),
             summaries=[s.summary for s in summaries],

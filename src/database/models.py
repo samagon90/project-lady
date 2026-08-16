@@ -54,6 +54,7 @@ class User(Base):
     jobs: Mapped[list[GenerationJob]] = relationship(back_populates="user", cascade="all, delete-orphan")
     assets: Mapped[list[GeneratedAsset]] = relationship(back_populates="user", cascade="all, delete-orphan")
     audit_events: Mapped[list[AuditEvent]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    diary_entries: Mapped[list[DiaryEntry]] = relationship(back_populates="user", cascade="all, delete-orphan")
 
 
 class UserPreferences(Base):
@@ -85,10 +86,38 @@ class UserPreferences(Base):
     interests: Mapped[str | None] = mapped_column(Text, nullable=True)
     boundaries: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    # --- Геймификация (как в Replika): XP и уровень отношений ---
+    # Уровень растёт от XP за сообщения: 1 Знакомство, 2 Дружба, 3 Лёгкий
+    # флирт, 4 Романтика, 5 Страсть, 6 Любовь, 7 Родные души.
+    xp: Mapped[int] = mapped_column(Integer, default=0)
+
+    # --- Настройка «живости» ответов (как в open-character-ai) ---
+    # creativity: 0 = спокойная, 1 = стандарт, 2 = дерзкая/игривая
+    creativity: Mapped[int] = mapped_column(Integer, default=1)
+    # response_length: 0 = коротко, 1 = средне, 2 = подробно
+    response_length: Mapped[int] = mapped_column(Integer, default=1)
+
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
 
     user: Mapped[User] = relationship(back_populates="preferences")
+
+
+class DiaryEntry(Base):
+    """Запись «дневника Лилит» (фича Replika): раз в день Лилит пишет
+    короткую запись о том, как прошёл день с пользователем."""
+
+    __tablename__ = "diary_entries"
+    __table_args__ = (Index("ix_diary_user_date", "telegram_user_id", "entry_date"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    telegram_user_id: Mapped[int] = mapped_column(BigInteger, index=True)
+    entry_date: Mapped[str] = mapped_column(String(10))  # YYYY-MM-DD
+    text: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    user: Mapped[User] = relationship(back_populates="diary_entries")
 
 
 class UserConsent(Base):

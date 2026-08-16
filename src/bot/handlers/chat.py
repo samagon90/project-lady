@@ -8,7 +8,7 @@ import re
 from aiogram import Bot, F, Router
 from aiogram.filters import StateFilter
 from aiogram.fsm.context import FSMContext
-from aiogram.types import FSInputFile, Message
+from aiogram.types import FSInputFile, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
 from src.bot.di import AppContext
 from src.bot.states import PhotoStates, SettingsStates
@@ -272,9 +272,18 @@ async def on_text(message: Message, bot: Bot, app_ctx: AppContext, user: DbUser 
     if not result.text:
         return
 
+    # Уведомление о повышении уровня отношений (фича Replika)
+    if result.level_up:
+        try:
+            await bot.send_message(chat_id=message.chat.id, text=result.level_up)
+        except Exception:  # noqa: BLE001
+            logger.warning("Не удалось отправить level_up: %s", result.level_up)
+
     # Лилит прикрепляет к каждому ответу свой аватар с эмоцией по тексту ответа
     if app_ctx.settings.chat_avatar_enabled:
-        await _send_reply_with_avatar(bot, message.chat.id, user, app_ctx, result.text)
+        await _send_reply_with_avatar(
+            bot, message.chat.id, user, app_ctx, result.text, swipe=True
+        )
     else:
         await bot.send_message(chat_id=message.chat.id, text=result.text)
 
@@ -296,10 +305,13 @@ async def on_text(message: Message, bot: Bot, app_ctx: AppContext, user: DbUser 
                     app_ctx.storage.remove(ogg_path)
 
 
-async def _send_reply_with_avatar(bot: Bot, chat_id: int, user: DbUser, app_ctx: AppContext, reply: str) -> None:
+async def _send_reply_with_avatar(
+    bot: Bot, chat_id: int, user: DbUser, app_ctx: AppContext, reply: str, *, swipe: bool = False
+) -> None:
     """Отправляет ответ Лилит как фото аватара с эмоцией + текст в подписи.
 
     Эмоция определяется по тексту ответа; если файла эмоции нет — обычный текст.
+    Под ответом — кнопка «🔄 Другой ответ» (свайпы, фича Character.AI).
     """
     from pathlib import Path
 
@@ -307,6 +319,14 @@ async def _send_reply_with_avatar(bot: Bot, chat_id: int, user: DbUser, app_ctx:
     async with app_ctx.db.session() as session:
         prefs = await PreferencesRepository(session).get_or_create(user)
     style = "anime" if prefs.image_style == "anime" else "realistic"
+
+    reply_markup = None
+    if swipe:
+        reply_markup = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton(text="🔄 Другой ответ", callback_data="alt_reply")]
+            ]
+        )
 
     avatar = Path("assets/emotions") / f"lilith_{emotion}{'_anime' if style == 'anime' else ''}.png"
     if not avatar.exists():
@@ -322,11 +342,62 @@ async def _send_reply_with_avatar(bot: Bot, chat_id: int, user: DbUser, app_ctx:
                 chat_id=chat_id,
                 photo=FSInputFile(str(avatar_path)),
                 caption=reply,
+                reply_markup=reply_markup,
             )
             return
         except Exception as exc:  # noqa: BLE001
             logger.warning("Не удалось отправить аватар с эмоцией: %s", exc)
-    await bot.send_message(chat_id=chat_id, text=reply)
+    await bot.send_message(chat_id=chat_id, text=reply, reply_markup=reply_markup)
+
+
+@router.callback_query(F.data == "alt_reply")
+async def cb_alt_reply(
+    callback_query, bot: Bot, app_ctx: AppContext, user: DbUser | None
+) -> None:
+    """«🔄 Другой ответ»: перегенерируем ответ на последнее сообщение пользователя."""
+    if not _require_active(user):
+        await bot.answer_callback_query(callback_query.id, text="Сначала /start", show_alert=True)
+        return
+    assert user is not None
+    await bot.answer_callback_query(callback_query.id, text="Придумываю другой ответ…")
+    try:
+        async with app_ctx.db.session() as session:
+            from src.database.repositories import ConversationRepository, MessageRepository
+
+            conversation = await ConversationRepository(session).get_active(user)
+            last = await MessageRepository(session).last_user_message(user.id, conversation.id)
+            if last is None:
+                await bot.answer_callback_query(callback_query.id, text="Нечего перегенерировать")
+                return
+        alternatives = await app_ctx.chat.alternatives(user, last.content, n=1)
+        if not alternatives:
+            await bot.answer_callback_query(callback_query.id, text="Модель занята, попробуй позже")
+            return
+        new_reply = alternatives[0]
+        markup = callback_query.message.reply_markup
+        if callback_query.message.caption is not None:
+            await bot.edit_message_caption(
+                chat_id=callback_query.message.chat.id,
+                message_id=callback_query.message.message_id,
+                caption=new_reply,
+                reply_markup=markup,
+            )
+        else:
+            await bot.edit_message_text(
+                chat_id=callback_query.message.chat.id,
+                message_id=callback_query.message.message_id,
+                text=new_reply,
+                reply_markup=markup,
+            )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Ошибка свайпа ответа: %s", exc)
+        await bot.answer_callback_query(
+            callback_query.id, text="Не получилось, попробуй позже", show_alert=True
+        )
+
+
+def _require_active(user: DbUser | None) -> bool:
+    return user is not None and user.consent_step == "active"
 
 
 def _detect_reply_emotion(text: str) -> str:

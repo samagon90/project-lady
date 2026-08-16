@@ -87,8 +87,9 @@ async def _main(settings: Settings) -> None:
             BotCommand(command="style", description="Стиль картинок: реалистичный/аниме"),
             BotCommand(command="voice", description="Голосовые ответы"),
             BotCommand(command="settings", description="Настройки"),
-            BotCommand(command="profile", description="Профиль"),
+            BotCommand(command="profile", description="Профиль и уровень отношений"),
             BotCommand(command="memory", description="Память"),
+            BotCommand(command="diary", description="📖 Дневник Лилит"),
             BotCommand(command="help", description="Справка"),
         ]
     )

@@ -9,6 +9,48 @@ from src.database.models import User
 
 MODE_LABELS = {0: "дружеский", 1: "лёгкий флирт", 2: "романтический", 3: "NSFW"}
 
+
+def parse_lorebook(raw: str) -> list[dict[str, str]]:
+    """Разбирает lorebook.md на записи: заголовок, триггеры, текст.
+
+    Формат в файле:
+        ## Запись: Название
+        Триггеры: слово1, слово2
+        Текст записи (может быть многострочным)...
+    """
+    entries: list[dict[str, str]] = []
+    current: dict[str, str] | None = None
+    for line in raw.splitlines():
+        line = line.rstrip()
+        if line.startswith("## Запись:"):
+            if current is not None:
+                entries.append(current)
+            current = {"title": line.removeprefix("## Запись:").strip(), "triggers": "", "text": ""}
+        elif current is not None:
+            if line.lower().startswith("триггеры:"):
+                current["triggers"] = line.split(":", 1)[1].strip().lower()
+            elif line.strip() and not line.startswith("#"):
+                current["text"] += line.strip() + " "
+    if current is not None:
+        entries.append(current)
+    result = []
+    for entry in entries:
+        triggers = entry["triggers"].strip().lower()
+        text = " ".join(entry["text"].split())
+        if triggers and text:
+            result.append({"title": entry["title"], "triggers": triggers, "text": text})
+    return result
+
+
+def lorebook_for_query(entries: list[dict[str, str]], query: str) -> list[dict[str, str]]:
+    """Возвращает записи лорбука, чьи триггеры встречаются в запросе."""
+    q = query.lower()
+    return [
+        entry
+        for entry in entries
+        if any(trigger.strip() in q for trigger in entry["triggers"].split(","))
+    ]
+
 _MODE_INSTRUCTIONS = {
     0: (
         "Дружеский режим: общайся тепло, с юмором и по-дружески. "
@@ -52,6 +94,9 @@ class PromptLibrary:
         self.image_prompt_prompt = self._load("image_prompt.md")
         self.moderation_prompt = self._load("moderation.md")
         self.character_sheet = self._load("character_sheet.md")
+        self.diary_prompt = self._load("diary.md")
+        self.lorebook_raw = self._load("lorebook.md")
+        self.lorebook_entries = parse_lorebook(self.lorebook_raw)
         self.default_negative_prompt = (
             "worst quality, low quality, bad anatomy, bad hands, extra fingers, "
             "deformed, disfigured, mutation, mutated, ugly, blurry, blur, out of focus, "

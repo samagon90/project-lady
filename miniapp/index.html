@@ -18,20 +18,27 @@
   </div>
 
   <div id="dialogue-box">
-    <div id="speaker">🖤 Лилит</div>
+    <div id="speaker">🖤 Лилит <span id="level-tag" class="level-tag" title="Уровень отношений"></span></div>
     <div id="dialogue-text">Загрузка…</div>
     <div id="input-row">
       <input id="chat-input" type="text" placeholder="Напиши Лилит…" autocomplete="off">
+      <button id="swipe-btn" title="Другой ответ">🔄</button>
       <button id="send-btn">➤</button>
     </div>
   </div>
 
   <nav id="mini-nav">
     <button class="tab active" data-tab="chat">💬 Чат</button>
+    <button class="tab" data-tab="diary">📖</button>
     <button class="tab" data-tab="settings">⚙️</button>
     <button class="tab" data-tab="gallery">🖼</button>
     <button class="tab" data-tab="memory">🧠</button>
   </nav>
+
+  <section id="tab-diary" class="panel">
+    <h2>📖 Дневник Лилит</h2>
+    <div id="diary"><p class="hint">Загрузка…</p></div>
+  </section>
 
   <section id="tab-settings" class="panel">
     <h2>⚙️ Настройки</h2>
@@ -50,6 +57,20 @@
       <select id="s-style">
         <option value="realistic">📸 Реалистичный</option>
         <option value="anime">🖌 Аниме</option>
+      </select>
+    </label>
+    <label>Креативность Лилит
+      <select id="s-creativity">
+        <option value="0">😌 Спокойная</option>
+        <option value="1">😏 Стандартная</option>
+        <option value="2">🔥 Дерзкая и игривая</option>
+      </select>
+    </label>
+    <label>Длина ответов
+      <select id="s-length">
+        <option value="0">📏 Коротко</option>
+        <option value="1">📖 Средне</option>
+        <option value="2">📚 Подробно</option>
       </select>
     </label>
     <label>Наряд

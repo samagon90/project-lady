@@ -43,6 +43,10 @@ async def cmd_profile(message: Message, bot: Bot, app_ctx: AppContext, user: DbU
         consent_info = await app_ctx.consent.consent_info(user)
     memory = await app_ctx.memory.overview(user)
     total_facts = sum(memory["counts"].values())
+    from src.services.chat import level_name, level_progress
+
+    level, xp_to_next, progress = level_progress(prefs.xp or 0)
+    bar = "▓" * int(progress * 10) + "░" * (10 - int(progress * 10))
     lines = [
         "👤 Твой профиль:",
         f"• Имя: {prefs.name or '—'} (обращение: «{prefs.address_term}»)",
@@ -53,6 +57,9 @@ async def cmd_profile(message: Message, bot: Bot, app_ctx: AppContext, user: DbU
         f"• Интересы: {prefs.interests or '—'}",
         f"• Границы: {prefs.boundaries or '—'}",
         "",
+        f"💜 Уровень отношений: {level_name(level)} ({level}/7)",
+        f"   {bar} {prefs.xp or 0} XP" + (f" · до следующего: {xp_to_next} XP" if xp_to_next else " · максимум"),
+        "",
         "📜 Согласия:",
         f"• Флирт/романтика: {consent_info['base_date'] or '—'} (v{consent_info['base_version'] or '—'})",
         f"• NSFW: {consent_info['nsfw_date'] or '—'} (v{consent_info['nsfw_version'] or '—'})",
@@ -60,6 +67,35 @@ async def cmd_profile(message: Message, bot: Bot, app_ctx: AppContext, user: DbU
         f"🧠 Воспоминаний: {total_facts}",
     ]
     await bot.send_message(chat_id=message.chat.id, text="\n".join(lines))
+
+
+# ===================================================================== /diary
+
+
+@router.message(Command("diary"))
+async def cmd_diary(message: Message, bot: Bot, app_ctx: AppContext, user: DbUser | None) -> None:
+    """Дневник Лилит (фича Replika): её записи о ваших днях."""
+    if not _require_user(user):
+        await _not_registered(message, bot)
+        return
+    assert user is not None
+    from src.database.repositories import DiaryRepository
+
+    async with app_ctx.db.session() as session:
+        entries = await DiaryRepository(session).list_recent(user.id, limit=5)
+    if not entries:
+        await bot.send_message(
+            chat_id=message.chat.id,
+            text="📖 Дневник пока пуст. Лилит напишет первую запись сегодня вечером, "
+            "после вашего разговора 💜",
+        )
+        return
+    blocks = ["📖 Дневник Лилит (последние записи):", ""]
+    for entry in entries:
+        blocks.append(f"📅 {entry.entry_date}")
+        blocks.append(entry.text)
+        blocks.append("")
+    await bot.send_message(chat_id=message.chat.id, text="\n".join(blocks).strip())
 
 
 # ===================================================================== /settings

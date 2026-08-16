@@ -20,6 +20,7 @@ from aiohttp import web
 from src.database.base import Database
 from src.database.repositories import (
     AssetRepository,
+    DiaryRepository,
     MemoryRepository,
     PreferencesRepository,
     UserRepository,
@@ -93,6 +94,8 @@ class MiniAppServer:
         self.app.router.add_get("/api/gallery/image/{asset_id}", self._api_gallery_image)
         self.app.router.add_get("/api/avatar", self._api_avatar)
         self.app.router.add_post("/api/chat", self._api_chat)
+        self.app.router.add_post("/api/chat/alternatives", self._api_chat_alternatives)
+        self.app.router.add_get("/api/diary", self._api_diary)
 
     # ------------------------------------------------------------- static
 
@@ -198,6 +201,9 @@ class MiniAppServer:
             from src.database.repositories import ConsentRepository
 
             nsfw = await ConsentRepository(session).get_active(user.id, "nsfw")
+        from src.services.chat import level_name, level_progress
+
+        level, xp_to_next, progress = level_progress(prefs.xp or 0)
         return web.json_response(
             {
                 "telegram_user_id": uid,
@@ -210,6 +216,13 @@ class MiniAppServer:
                 "interests": prefs.interests,
                 "boundaries": prefs.boundaries,
                 "consent_nsfw": nsfw is not None,
+                "xp": prefs.xp or 0,
+                "level": level,
+                "level_name": level_name(level),
+                "xp_to_next": xp_to_next,
+                "level_progress": round(progress, 3),
+                "creativity": prefs.creativity,
+                "response_length": prefs.response_length,
             }
         )
 
@@ -230,6 +243,8 @@ class MiniAppServer:
             "speech_style": (str, 200),
             "interests": (str, 1000),
             "boundaries": (str, 1000),
+            "creativity": (int, None),
+            "response_length": (int, None),
         }
         fields: dict = {}
         for key, (ctype, maxlen) in allowed.items():
@@ -251,6 +266,10 @@ class MiniAppServer:
             fields.pop("image_style")
         if "mode" in fields and fields["mode"] not in (0, 1, 2, 3):
             fields.pop("mode")
+        if "creativity" in fields and fields["creativity"] not in (0, 1, 2):
+            fields.pop("creativity")
+        if "response_length" in fields and fields["response_length"] not in (0, 1, 2):
+            fields.pop("response_length")
         async with self.db.session() as session:
             user = await UserRepository(session).get_by_telegram_id(uid)
             if user is None:
@@ -331,6 +350,57 @@ class MiniAppServer:
             }
         )
 
+    async def _api_chat_alternatives(self, request: web.Request) -> web.Response:
+        """Свайпы (фича Character.AI / SillyTavern): несколько вариантов ответа
+        Лилит на последнее сообщение пользователя."""
+        uid = self._user_id(request)
+        if uid is None:
+            return web.json_response({"error": "unauthorized"}, status=401)
+        try:
+            payload = await request.json()
+        except Exception:  # noqa: BLE001
+            return web.json_response({"error": "bad_json"}, status=400)
+        text = str(payload.get("text", ""))[:2000].strip()
+        n = min(int(payload.get("n", 3) or 3), 3)
+        if not text:
+            return web.json_response({"error": "empty"}, status=400)
+        chat = request.app.get("chat")
+        if chat is None:
+            return web.json_response({"error": "chat_unavailable"}, status=503)
+        async with self.db.session() as session:
+            user = await UserRepository(session).get_by_telegram_id(uid)
+            if user is None:
+                return web.json_response({"error": "not_registered"}, status=404)
+        try:
+            alternatives = await chat.alternatives(user, text, n=n)
+        except Exception:  # noqa: BLE001
+            alternatives = []
+        if not alternatives:
+            return web.json_response({"error": "llm_unavailable", "detail": "нет вариантов"}, status=503)
+        return web.json_response({"alternatives": alternatives})
+
+    async def _api_diary(self, request: web.Request) -> web.Response:
+        """Дневник Лилит (фича Replika): записи, которые Лилит пишет сама."""
+        uid = self._user_id(request)
+        if uid is None:
+            return web.json_response({"error": "unauthorized"}, status=401)
+        async with self.db.session() as session:
+            user = await UserRepository(session).get_by_telegram_id(uid)
+            if user is None:
+                return web.json_response({"error": "not_registered"}, status=404)
+            entries = await DiaryRepository(session).list_recent(user.id, limit=20)
+        return web.json_response(
+            {
+                "entries": [
+                    {
+                        "date": e.entry_date,
+                        "text": e.text,
+                    }
+                    for e in entries
+                ]
+            }
+        )
+
     async def _api_chat(self, request: web.Request) -> web.Response:
         """Диалог с Лилит из мини-приложения (прокси в ChatService)."""
         uid = self._user_id(request)
@@ -380,7 +450,10 @@ class MiniAppServer:
         # Эмоция и «раскованность» — по ответу Лилит (а не по запросу),
         # чтобы картинка менялась в такт её настроению.
         emotion, stage = _detect_emotion_and_stage(result.text or text)
-        return web.json_response({"reply": result.text, "emotion": emotion, "stage": stage})
+        response_body: dict = {"reply": result.text, "emotion": emotion, "stage": stage}
+        if getattr(result, "level_up", None):
+            response_body["level_up"] = result.level_up
+        return web.json_response(response_body)
 
     # ------------------------------------------------------------- lifecycle
 
