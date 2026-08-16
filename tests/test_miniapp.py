@@ -146,3 +146,25 @@ async def test_detect_emotion_new() -> None:
     assert _detect_emotion_and_stage("я так рада")[0] == "happy"
     assert _detect_emotion_and_stage("ты меня бесишь")[0] == "angry"
     assert _detect_emotion_and_stage("хочу тебя")[0] == "passion"
+
+
+def test_miniapp_js_no_dead_reference() -> None:
+    """app.js НЕ должен вызывать неопределённые функции — иначе весь скрипт
+    падает при загрузке и Mini App «не нажимается» (кнопки, чат, аватар)."""
+    from pathlib import Path
+
+    js = (Path(__file__).resolve().parents[1] / "miniapp" / "app.js").read_text(encoding="utf-8")
+    # generateOutfit вызывается в addEventListener — должна быть и определена
+    assert "function generateOutfit" in js
+    assert "generate-outfit" in js
+    # Баланс скобок/фигурных скобок — скрипт хотя бы синтаксически цел
+    assert js.count("{") == js.count("}"), "несбалансированные фигурные скобки в app.js"
+    assert js.count("(") == js.count(")"), "несбалансированные круглые скобки в app.js"
+    # Все id, к которым обращается JS, существуют в index.html
+    import re
+
+    html = (Path(__file__).resolve().parents[1] / "miniapp" / "index.html").read_text(encoding="utf-8")
+    html_ids = set(re.findall(r'id="([^"]+)"', html))
+    js_ids = set(re.findall(r'el\("([^"]+)"\)', js))
+    missing = js_ids - html_ids
+    assert not missing, f"JS обращается к несуществующим id: {missing}"

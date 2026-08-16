@@ -377,6 +377,9 @@ class MiniAppServer:
             result = await chat.handle_message(user, text, None)
         except Exception as exc:  # noqa: BLE001
             return web.json_response({"error": "llm_unavailable", "detail": str(exc)}, status=503)
+        # Эмоция и «раскованность» — по ответу Лилит (а не по запросу),
+        # чтобы картинка менялась в такт её настроению.
+        emotion, stage = _detect_emotion_and_stage(result.text or text)
         return web.json_response({"reply": result.text, "emotion": emotion, "stage": stage})
 
     # ------------------------------------------------------------- lifecycle

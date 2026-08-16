@@ -107,6 +107,29 @@
       });
   }
 
+  // ---- Генерация образа в выбранном наряде (сервер сам рисует и пришлёт в Telegram)
+  function generateOutfit() {
+    const outfit = el("s-outfit").value.trim();
+    if (!outfit) {
+      el("save-msg").textContent = "Сначала напиши наряд в поле выше 👗";
+      return;
+    }
+    el("save-msg").textContent = "🎨 Рисую образ в наряде: «" + outfit + "»…";
+    api("/api/chat", { method: "POST", body: JSON.stringify({ text: "переоденься в этот наряд", outfit: outfit }) })
+      .then(function (res) {
+        if (res.generating) {
+          el("save-msg").textContent = "✅ Генерация запущена — картинка придёт в Telegram!";
+        } else if (res.reply) {
+          el("save-msg").textContent = res.reply;
+        } else {
+          el("save-msg").textContent = "❌ Не получилось, попробуй ещё раз";
+        }
+      })
+      .catch(function (e) {
+        el("save-msg").textContent = "❌ " + e.message;
+      });
+  }
+
   el("generate-outfit").addEventListener("click", generateOutfit);
 
   // Кнопка «в белье / одеться»
@@ -214,6 +237,14 @@
   }
 
   // ---- Старт
+  // Любая ошибка ниже должна ПОКАЗЫВАТЬСЯ на экране, а не убивать приложение молча
+  window.addEventListener("error", function (ev) {
+    try {
+      var d = document.getElementById("dialogue-text");
+      if (d) d.textContent = "⚠️ Ошибка: " + (ev.message || "неизвестная") + ". Обнови Mini App.";
+    } catch (e) { /* ignore */ }
+  });
+
   api("/api/me")
     .then(function (d) {
       fillSettings(d);
