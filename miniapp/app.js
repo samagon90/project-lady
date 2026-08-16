@@ -309,6 +309,19 @@
   }
 
   // ---- Старт
+  // Если приложение открыто НЕ внутри Telegram (обычный браузер) — Telegram
+  // не выдаёт «пропуск» (initData), и API отвечает 401. Показываем подсказку.
+  if (!window.Telegram || !window.Telegram.WebApp) {
+    var d0 = document.getElementById("dialogue-text");
+    if (d0) {
+      d0.textContent = "🖤 Это приложение Лилит. Открой его ВНУТРИ Telegram: напиши боту /app — и всё заработает. Ссылка в обычном браузере работать не будет (Telegram не пускает).";
+    }
+    try {
+      var a0 = document.getElementById("avatar");
+      if (a0) a0.src = "/api/avatar?style=realistic&emotion=flirt";
+    } catch (e) { /* ignore */ }
+  }
+
   // Любая ошибка ниже должна ПОКАЗЫВАТЬСЯ на экране, а не убивать приложение молча
   window.addEventListener("error", function (ev) {
     try {

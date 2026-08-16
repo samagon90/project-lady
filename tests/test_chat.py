@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from src.bot.di import AppContext
 from src.database.models import AuditEvent, Message
 from tests.conftest import FakeLLM, make_update_message, onboard, tg_user
@@ -125,13 +127,31 @@ async def test_cjk_garbage_auto_retry(ctx: AppContext, dp, bot, fake_llm) -> Non
 
 
 async def test_cjk_garbage_fallback_message(ctx: AppContext, dp, bot, fake_llm) -> None:
-    """Если модель всегда отвечает иероглифами — понятное сообщение со сменой модели."""
+    """Если модель ВСЕГДА отвечает иероглифами — Лилит отвечает живым русским
+    текстом (не технической инструкцией про .env)."""
     fake_llm.chinese_only = True
     await onboard(ctx, 9992)
     user_a = tg_user(9992, "W")
     await dp.feed_update(bot, make_update_message(9992, user_a, "привет"))
     text = bot.last_text()
-    assert "LLM_MODEL" in text and "русск" in text
+    # Живой ответ Лилит, по-русски, без технических деталей и иероглифов
+    assert "LLM_MODEL" not in text
+    assert ".env" not in text
+    assert "язык" in text.lower() or "слыш" in text.lower()
+    from src.utils import contains_cjk
+
+    assert not contains_cjk(text)
+
+
+async def test_system_prompt_requires_russian() -> None:
+    """Системный промпт требует отвечать по-русски (защита от иероглифов)."""
+
+    from src.prompts import PromptLibrary
+
+    lib = PromptLibrary()
+    assert "ЯЗЫК" in lib.system_template
+    assert "русском языке" in lib.system_template
+    assert "иероглиф" in lib.system_template
 
 
 async def test_moderation_blocks_minor_variants(ctx: AppContext) -> None:
@@ -281,7 +301,6 @@ async def test_show_self_with_emotion(ctx: AppContext, dp, bot) -> None:
     caption = photos[-1][2].get("caption", "")
     assert "страстная" in caption
     # файл эмоции существует
-    from pathlib import Path
 
     assert Path("assets/emotions/lilith_passion.png").exists()  # noqa: ASYNC240
 

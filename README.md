@@ -203,11 +203,11 @@ TELEGRAM_TOKEN=123456789:AA...
 # Установка Ollama (Linux):
 curl -fsSL https://ollama.com/install.sh | sh
 
-# Модель для общения (рекомендуется Qwen 3 без цензуры):
-ollama pull huihui_ai/qwen3-abliterated:14b
-# Для слабых ПК — 8b:
-#   ollama pull huihui_ai/qwen3-abliterated:8b
-# Классика: dolphin3:8b
+# Модель для общения (рекомендуется Qwen 2.5 без цензуры — отличный русский,
+# стабильная, не «слетает» на иероглифы, в отличие от qwen3-abliterated):
+ollama pull huihui_ai/qwen2.5-abliterated:7b
+# Запасной вариант (тоже uncensored):
+#   ollama pull dolphin-llama3:8b
 
 # Модель для embeddings (семантическая память):
 ollama pull nomic-embed-text
@@ -220,7 +220,7 @@ ollama serve
 
 ```dotenv
 LLM_BASE_URL=http://127.0.0.1:11434
-LLM_MODEL=qwen2.5:7b
+LLM_MODEL=huihui_ai/qwen2.5-abliterated:7b
 EMBEDDING_MODEL=nomic-embed-text
 ```
 
@@ -448,8 +448,9 @@ fallback TTS, rate limiting, очистку временных файлов.
 | Проблема | Решение |
 |---|---|
 | «TELEGRAM_TOKEN не задан» | Заполните `.env` (скопируйте из `.env.example`) |
-| «Моя языковая модель сейчас недоступна» / бот не отвечает | В `.env` нет `LLM_MODEL` или указана несуществующая модель. Проверьте: `ollama list` → имя модели (например `huihui_ai/qwen3-abliterated:14b`) → в `.env` строка `LLM_MODEL=<то же имя>`, перезапустите бота. В Colab просто загрузите свежий ноутбук v1.8.7+ — он пишет `LLM_MODEL` сам, а в конце самопроверкой показывает ✅/❌ |
-| «Модель ... не найдена в Ollama» | `ollama pull huihui_ai/qwen3-abliterated:14b` (при RAM < 10 ГБ — `:8b`); после установки перезапустите бота. С v1.8.7 бот сам подхватывает установленную модель |
+| «Моя языковая модель сейчас недоступна» / бот не отвечает | В `.env` нет `LLM_MODEL` или указана несуществующая модель. Проверьте: `ollama list` → имя модели (например `huihui_ai/qwen2.5-abliterated:7b`) → в `.env` строка `LLM_MODEL=<то же имя>`, перезапустите бота. В Colab просто загрузите свежий ноутбук v1.8.10+ — он пишет `LLM_MODEL` сам, а в конце самопроверкой показывает ✅/❌ |
+| «Модель ... не найдена в Ollama» | `ollama pull huihui_ai/qwen2.5-abliterated:7b`; после установки перезапустите бота. С v1.8.7 бот сам подхватывает установленную модель |
+| Бот отвечает иероглифами (китайским) | Модель «слетела» на китайский (бывает у qwen3-abliterated). Поставьте стабильную: `ollama pull huihui_ai/qwen2.5-abliterated:7b`, в `.env` `LLM_MODEL=huihui_ai/qwen2.5-abliterated:7b`, перезапустите. Бот с v1.8.10 сам переспрашивает до 3 раз и, если не помогло, отвечает живым текстом |
 | Голос не отправляется | `piper` в PATH (`which piper`), `make voice`, ffmpeg установлен |
 | Картинки не генерируются | ComfyUI запущен (`curl http://127.0.0.1:8188/system_stats`), checkpoint скачан (~2 ГБ), имя совпадает с `COMFYUI_CHECKPOINT`. С v1.8.7 бот сам найдёт установленный checkpoint |
 | Бот не отвечает в группе | Это by design: личные сообщения только |

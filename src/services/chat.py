@@ -201,42 +201,54 @@ class ChatService:
             if fixed and not _has_masculine_self(fixed):
                 reply = fixed
         # Защита от глючных моделей: если ответ содержит иероглифы (модель
-        # «слетела» на китайский), переспрашиваем один раз, явно требуя русский.
+        # «слетела» на китайский — так бывает у Qwen-моделей), переспрашиваем
+        # до 3 раз с низкой температурой и жёстким требованием русского.
         if contains_cjk(reply):
             logger.warning(
                 "Модель ответила иероглифами (user %s) — переспрашиваю по-русски",
                 user.telegram_user_id,
             )
-            fix_messages = [
-                *messages_for_llm,
-                {"role": "assistant", "content": truncate(reply, 500)},
-                {
-                    "role": "user",
-                    "content": (
-                        "Пожалуйста, ответь ещё раз на мой вопрос. Отвечай СТРОГО "
-                        "на русском языке, без иероглифов и без других языков."
-                    ),
-                },
-            ]
-            try:
-                fixed = (
-                    await self.llm.chat(
-                        fix_messages,
-                        temperature=self.settings.llm_temperature,
-                        max_tokens=self.settings.llm_max_tokens,
-                    )
-                ).strip()
-            except LLMUnavailable:
-                fixed = ""
-            if contains_cjk(fixed):
-                reply = (
-                    "😔 Похоже, языковая модель сбоит и отвечает не по-русски. "
-                    "Это значит, что в файле .env указана глючная модель. "
-                    "Откройте .env, поменяйте LLM_MODEL на dolphin-llama3:8b "
-                    "(или qwen2.5:7b) и перезапустите бота."
-                )
-            else:
+            fixed = ""
+            for _attempt in range(3):
+                fix_messages = [
+                    *messages_for_llm,
+                    {"role": "assistant", "content": truncate(reply, 500)},
+                    {
+                        "role": "user",
+                        "content": (
+                            "Ты ответила иероглифами — это недопустимо. "
+                            "Ответь на мой вопрос ЕЩЁ РАЗ, СТРОГО на русском языке, "
+                            "по-русски, без единого иероглифа. Ты — Лилит, говоришь "
+                            "по-русски."
+                        ),
+                    },
+                ]
+                try:
+                    candidate = (
+                        await self.llm.chat(
+                            fix_messages,
+                            temperature=0.2,
+                            max_tokens=self.settings.llm_max_tokens,
+                        )
+                    ).strip()
+                except LLMUnavailable:
+                    candidate = ""
+                if candidate and not contains_cjk(candidate):
+                    fixed = candidate
+                    break
+                reply = candidate or reply
+            if fixed:
                 reply = fixed
+            else:
+                logger.warning(
+                    "Модель %s трижды ответила иероглифами — использую запасной ответ",
+                    getattr(self.llm, "model", "?"),
+                )
+                reply = (
+                    "Ой, прости… Мой язык сегодня заплетается, я совсем не в форме. "
+                    "Давай ещё раз, с самого начала: я здесь, я тебя слышу. "
+                    "Что ты хотел мне сказать? 💜"
+                )
         reply = truncate(reply, self.settings.max_message_length)
 
         async with self.db.session() as session:

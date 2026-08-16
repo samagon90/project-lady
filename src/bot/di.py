@@ -65,7 +65,7 @@ class AppContext:
         if isinstance(self.llm, OllamaLLMProvider):
             old_model = self.llm.model
             chosen = await self.llm.auto_pick_model(
-                preferred=("huihui_ai/qwen3-abliterated", "qwen2.5", "qwen3", "dolphin")
+                preferred=("huihui_ai/qwen2.5-abliterated", "qwen2.5", "dolphin", "qwen3")
             )
             if chosen != old_model:
                 logger.warning("LLM-модель исправлена автоматически: %s -> %s", old_model, chosen)

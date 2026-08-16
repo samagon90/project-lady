@@ -71,6 +71,12 @@ async def on_text(message: Message, bot: Bot, app_ctx: AppContext, user: DbUser 
             text="Сначала познакомимся: нажми /start 🌸",
         )
         return
+    # Показываем «Лилит печатает…», чтобы было видно, что бот думает
+    # (локальные модели отвечают 5–30 секунд — без индикатора кажется, что завис)
+    try:
+        await bot.send_chat_action(chat_id=message.chat.id, action="typing")
+    except Exception:  # noqa: BLE001
+        pass
     text = message.text or ""
     if len(text) > app_ctx.settings.max_message_length:
         await bot.send_message(
@@ -330,14 +336,32 @@ async def _send_reply_with_avatar(
 
     avatar = Path("assets/emotions") / f"lilith_{emotion}{'_anime' if style == 'anime' else ''}.png"
     if not avatar.exists():
-        avatar = (
-            Path("assets/lilith_avatar_anime.png")
-            if style == "anime"
-            else Path("assets/lilith_avatar.png")
+        # Запасной вариант: если файла эмоции нет — берём ДРУГУЮ существующую
+        # эмоцию (по стабильному индексу), а не всегда один и тот же базовый
+        # аватар. Так фото будет меняться даже при неполной папке эмоций.
+        import glob as _glob
+
+        candidates = sorted(
+            _glob.glob(str(app_ctx.settings.resolve_path(Path("assets/emotions")) / "lilith_*.png"))
         )
-    avatar_path = app_ctx.settings.resolve_path(avatar)
+        if candidates:
+            idx = abs(hash((style, emotion))) % len(candidates)
+            avatar_path = Path(candidates[idx])
+        else:
+            avatar = (
+                Path("assets/lilith_avatar_anime.png")
+                if style == "anime"
+                else Path("assets/lilith_avatar.png")
+            )
+            avatar_path = app_ctx.settings.resolve_path(avatar)
+    else:
+        avatar_path = app_ctx.settings.resolve_path(avatar)
     if avatar_path.exists():
         try:
+            try:
+                await bot.send_chat_action(chat_id=chat_id, action="upload_photo")
+            except Exception:  # noqa: BLE001
+                pass
             await bot.send_photo(
                 chat_id=chat_id,
                 photo=FSInputFile(str(avatar_path)),
