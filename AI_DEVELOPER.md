@@ -97,9 +97,21 @@ migrations/                # Alembic
 
 ### Эмоции и аватары
 - Файлы: `assets/emotions/lilith_{emotion}.png` (+ `_anime`, `lingerie/`, `stage/`).
+- **ВАЖНО (правило пользователя): ВСЕ аватары Лилит — в том числе «в белье» и
+  аниме-версии — должны быть СЕКСУАЛЬНЫМИ/соблазнительными** (кружевное бельё,
+  чулки, подвязки, игривые позы, соблазнительные взгляды). Лилит — раскованная
+  госпожа, аватары это отражают. Персонаж — взрослая (24 года), 18+.
+- Форматы файлов:
+  - реалистичный одетый: `lilith_{emotion}.png`
+  - реалистичный в белье: `lingerie/lilith_{emotion}_lingerie.png`
+  - аниме одетый: `lilith_{emotion}_anime.png`
+  - аниме в белье: `lingerie/lilith_{emotion}_anime_lingerie.png`
 - Список эмоций: `src/miniapp_server.py` (allowed), `miniapp/app.js` (labels).
 - Детектор эмоций по тексту: `src/bot/handlers/chat.py` (`_detect_reply_emotion`),
   `src/miniapp_server.py` (`_detect_emotion_and_stage`).
+- Фолбэк-цепочка `_api_avatar` (аниме+бельё): точная эмоция → ближайшая
+  аниме-бельевая → реалистичная бельевая → одетая аниме. Карты ближайших
+  эмоций — `_ANIME_LINGERIE_FALLBACK`, `_LINGERIE_FALLBACK` в miniapp_server.py.
 
 ### Генерация картинок
 - `src/services/image.py` — модерация → `_build_image_prompt` (LLM + fallback

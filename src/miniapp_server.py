@@ -147,19 +147,54 @@ class MiniAppServer:
         stage = int(request.query.get("stage", "1") or "1")
         stage = max(1, min(4, stage))
         clothes = request.query.get("clothes", "")
-        if style == "anime":
+
+        # Ближайшие по смыслу эмоции для отсутствующих файлов в белье
+        # (аниме и реалистичный), чтобы Лилит ВСЕГДА была в белье, а не одетая.
+        _LINGERIE_FALLBACK = {
+            "confused": "thinking",
+            "contempt": "serious",
+            "disgust": "bored",
+            "relief": "happy",
+        }
+        _ANIME_LINGERIE_FALLBACK = {
+            "serious": "angry",
+            "surprised": "excited",
+            "proud": "neutral",
+            "jealous": "angry",
+            "bored": "neutral",
+            "sleepy": "tender",
+            "crying": "sad",
+            "scared": "shy",
+            "disgust": "angry",
+            "contempt": "neutral",
+            "relief": "happy",
+            "thinking": "shy",
+            "confused": "shy",
+        }
+
+        if style == "anime" and clothes == "lingerie":
+            # Лилит В БЕЛЬЕ, аниме-стиль: сначала точная эмоция, затем ближайшая
+            # аниме-бельевая, затем реалистичная бельевая, затем одетая аниме.
+            alt = _ANIME_LINGERIE_FALLBACK.get(emotion, emotion)
+            base = Path("assets/emotions/lingerie") / f"lilith_{emotion}_anime_lingerie.png"
+            if not base.exists():
+                base = Path("assets/emotions/lingerie") / f"lilith_{alt}_anime_lingerie.png"
+            if not base.exists():
+                base = Path("assets/emotions/lingerie") / f"lilith_{emotion}_lingerie.png"
+            if not base.exists():
+                alt2 = _LINGERIE_FALLBACK.get(emotion, emotion)
+                base = Path("assets/emotions/lingerie") / f"lilith_{alt2}_lingerie.png"
+            if not base.exists():
+                base = Path("assets/emotions") / f"lilith_{emotion}_anime.png"
+            if not base.exists():
+                base = Path("assets/lilith_avatar_anime.png")
+        elif style == "anime":
             base = Path("assets/emotions") / f"lilith_{emotion}_anime.png"
             if not base.exists():
                 base = Path("assets/lilith_avatar_anime.png")
         elif clothes == "lingerie":
             # Лилит в нижнем белье. Если файла эмоции ещё нет — берём БЛИЖАЙШУЮ
             # существующую эмоцию в белье (чтобы не показывать одетую версию).
-            _LINGERIE_FALLBACK = {
-                "confused": "thinking",
-                "contempt": "serious",
-                "disgust": "bored",
-                "relief": "happy",
-            }
             base = Path("assets/emotions/lingerie") / f"lilith_{emotion}_lingerie.png"
             if not base.exists():
                 alt = _LINGERIE_FALLBACK.get(emotion, emotion)

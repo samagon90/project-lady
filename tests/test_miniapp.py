@@ -213,3 +213,37 @@ async def test_miniapp_history(ctx) -> None:
     roles = [m["role"] for m in data["messages"]]
     assert "user" in roles and "assistant" in roles
     assert any(m["content"] == "привет, дорогой" for m in data["messages"])
+
+
+async def test_miniapp_avatar_anime_lingerie_all_emotions(ctx) -> None:
+    """Аниме-стиль + «в белье»: ВСЕ 23 эмоции отдаются 200 (фолбэк-цепочка
+    подставляет ближайшую аниме-бельевую, реалистичную бельевую или одетую)."""
+    import aiohttp
+
+    server = MiniAppServer(ctx.db, "123:TESTTOKEN")
+    await server.start()
+    emotions = ["neutral", "flirt", "passion", "playful", "tender", "serious",
+                "happy", "sad", "angry", "surprised", "shy", "proud", "jealous",
+                "bored", "excited", "sleepy", "crying", "scared", "disgust",
+                "contempt", "relief", "thinking", "confused"]
+    try:
+        async with aiohttp.ClientSession() as session:
+            for emo in emotions:
+                async with session.get(
+                    f"http://127.0.0.1:8001/api/avatar?style=anime&clothes=lingerie&emotion={emo}"
+                ) as r:
+                    assert r.status == 200, f"anime+lingerie {emo} -> {r.status}"
+    finally:
+        await server.stop()
+
+
+def test_miniapp_avatar_anime_files_exist() -> None:
+    """Ключевые аниме-бельевые эмоции реально лежат в папке."""
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1]
+    folder = root / "assets/emotions/lingerie"
+    # 10 нарисованных аниме-бельевых эмоций
+    for emo in ("neutral", "passion", "flirt", "playful", "shy", "happy",
+                "excited", "tender", "sad", "angry"):
+        assert (folder / f"lilith_{emo}_anime_lingerie.png").exists(), f"нет {emo} anime lingerie"
