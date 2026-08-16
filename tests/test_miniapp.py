@@ -161,10 +161,55 @@ def test_miniapp_js_no_dead_reference() -> None:
     assert js.count("{") == js.count("}"), "несбалансированные фигурные скобки в app.js"
     assert js.count("(") == js.count(")"), "несбалансированные круглые скобки в app.js"
     # Все id, к которым обращается JS, существуют в index.html
+    # (кроме динамических, создаваемых в рантайме)
     import re
 
     html = (Path(__file__).resolve().parents[1] / "miniapp" / "index.html").read_text(encoding="utf-8")
     html_ids = set(re.findall(r'id="([^"]+)"', html))
     js_ids = set(re.findall(r'el\("([^"]+)"\)', js))
-    missing = js_ids - html_ids
+    dynamic = {"typing-row"}  # создаётся в рантайме
+    missing = js_ids - html_ids - dynamic
     assert not missing, f"JS обращается к несуществующим id: {missing}"
+
+
+async def test_miniapp_history(ctx) -> None:
+    """/api/history возвращает последние сообщения диалога."""
+    import hashlib
+    import hmac
+    import json as _json
+    import urllib.parse
+
+    from src.miniapp_server import MiniAppServer
+
+    token = "123:TESTTOKEN"
+    await onboard(ctx, 7777, nsfw=True)
+    server = MiniAppServer(ctx.db, token)
+
+    user_json = _json.dumps({"id": 7777, "first_name": "T", "is_bot": False})
+    pairs = [("user", user_json), ("auth_date", "1700000000")]
+    data_check = "\n".join(f"{k}={v}" for k, v in sorted(pairs))
+    secret = hmac.new(b"WebAppData", token.encode(), hashlib.sha256).digest()
+    digest = hmac.new(secret, data_check.encode(), hashlib.sha256).hexdigest()
+    init = urllib.parse.urlencode(pairs + [("hash", digest)])
+
+    # Пишем пару сообщений в диалог пользователя
+    from src.database.repositories import ConversationRepository, MessageRepository, UserRepository
+
+    async with ctx.db.session() as session:
+        user = await UserRepository(session).get_by_telegram_id(7777)
+        conversation = await ConversationRepository(session).get_active(user)
+        await MessageRepository(session).add(conversation, "user", "привет")
+        await MessageRepository(session).add(conversation, "assistant", "привет, дорогой")
+
+    class _Req:
+        headers = {"x-init-data": init}
+
+        async def json(self):
+            return {}
+
+    resp = await server._api_history(_Req())
+    assert resp.status == 200, resp.body
+    data = _json.loads(resp.body)
+    roles = [m["role"] for m in data["messages"]]
+    assert "user" in roles and "assistant" in roles
+    assert any(m["content"] == "привет, дорогой" for m in data["messages"])

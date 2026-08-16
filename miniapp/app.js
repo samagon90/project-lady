@@ -1,5 +1,7 @@
-/* Лилит — визуальная новелла в Telegram Mini App */
+/* Лилит — визуальная новелла в Telegram Mini App (v1.8.11) */
 (function () {
+  "use strict";
+
   const tg = window.Telegram?.WebApp;
   if (tg) {
     tg.ready();
@@ -9,7 +11,6 @@
   }
 
   const INIT_DATA = tg ? tg.initData : "";
-  const MODES = { 0: "🤝 Дружеский", 1: "😉 Флирт", 2: "💞 Романтический", 3: "🔞 NSFW" };
 
   function el(id) { return document.getElementById(id); }
 
@@ -26,7 +27,15 @@
     });
   }
 
-  // ---- Определение эмоции по тексту (для аватара)
+  // ============================== ЭМОЦИИ ==============================
+
+  const EMOTION_LABELS = {
+    neutral: "😌", flirt: "😏", passion: "🔥", playful: "😜", tender: "💗", serious: "😐",
+    happy: "😊", sad: "😢", angry: "😠", surprised: "😲", shy: "😳", proud: "😎",
+    jealous: "😒", bored: "🥱", excited: "🤩", sleepy: "😴", crying: "😭", scared: "😨",
+    disgust: "🤢", contempt: "🙄", relief: "😮‍💨", thinking: "🤔", confused: "😕"
+  };
+
   function detectEmotion(text) {
     const t = text.toLowerCase();
     if (/(фу|отврат|гадость|противн|мерзост)/.test(t)) return "disgust";
@@ -53,69 +62,160 @@
     return "neutral";
   }
 
+  // ============================== АВАТАР ==============================
+
   let currentStyle = "realistic";
   let currentEmotion = "neutral";
-  let currentStage = 1; // 1=одета, 2=блузка расстёгнута, 3=в белье/чулках, 4=топлес
-  let currentClothes = ""; // "" = школьный костюм, "lingerie" = нижнее бельё
+  let currentStage = 1;
+  let currentClothes = "";
 
   function setAvatar(emotion, stage) {
     currentEmotion = emotion || "neutral";
     if (stage) currentStage = Math.max(1, Math.min(4, stage));
     const stagePath = currentStage > 1 ? "&stage=" + currentStage : "";
     const clothesPath = currentClothes ? "&clothes=" + currentClothes : "";
-    el("avatar").src = "/api/avatar?style=" + currentStyle + "&emotion=" + currentEmotion + stagePath + clothesPath;
-    const labels = {
-      neutral: "😌", flirt: "😏", passion: "🔥", playful: "😜", tender: "💗", serious: "😐",
-      happy: "😊", sad: "😢", angry: "😠", surprised: "😲", shy: "😳", proud: "😎",
-      jealous: "😒", bored: "🥱", excited: "🤩", sleepy: "😴", crying: "😭", scared: "😨",
-      disgust: "🤢", contempt: "🙄", relief: "😮‍💨", thinking: "🤔", confused: "😕"
-    };
-    el("emotion-tag").textContent = labels[currentEmotion] || "😌";
-    // индикатор раскованности
-    const mood = ["👗", "👙", "🩲", "🔥"][currentStage - 1];
-    el("mood-tag").textContent = mood + " " + currentStage + "/4";
+    const img = el("avatar");
+    img.style.opacity = "0.3";
+    img.onload = function () { img.style.opacity = "1"; };
+    img.src = "/api/avatar?style=" + currentStyle + "&emotion=" + currentEmotion + stagePath + clothesPath;
+    const tag = el("emotion-tag");
+    if (tag) tag.textContent = EMOTION_LABELS[currentEmotion] || "😌";
+    const mood = el("mood-tag");
+    if (mood) mood.textContent = ["👗", "👙", "🩲", "🔥"][currentStage - 1] + " " + currentStage + "/4";
   }
 
-  // ---- Чат (диалог с Лилит через бота)
-  let chatHistory = [];
-  function addMessage(role, text) {
-    chatHistory.push({ role: role, text: text });
-    const d = el("dialogue-text");
-    d.textContent = (role === "user" ? "Ты: " : "") + text;
-    // эмоция по ответу Лилит
-    if (role === "assistant") setAvatar(detectEmotion(text));
-    d.scrollIntoView({ block: "nearest" });
+  // ============================== ЧАТ (пузыри) ==============================
+
+  const chatLog = el("chat-log");
+  const MAX_BUBBLES = 60;
+
+  function addBubble(role, text) {
+    const ph = el("chat-placeholder");
+    if (ph) ph.style.display = "none";
+    const row = document.createElement("div");
+    row.className = "msg-row " + (role === "user" ? "msg-user" : "msg-lilith");
+
+    const bubble = document.createElement("div");
+    bubble.className = "bubble";
+    bubble.textContent = text;
+
+    if (role === "assistant") {
+      const name = document.createElement("div");
+      name.className = "msg-name";
+      name.textContent = "🖤 Лилит";
+      row.appendChild(name);
+    }
+    row.appendChild(bubble);
+    chatLog.appendChild(row);
+
+    // Не даём истории разрастаться бесконечно
+    while (chatLog.children.length > MAX_BUBBLES) {
+      chatLog.removeChild(chatLog.firstChild);
+    }
+    chatLog.scrollTop = chatLog.scrollHeight;
+    return row;
   }
 
-  function sendChat() {
+  function typingBubble() {
+    const row = document.createElement("div");
+    row.className = "msg-row msg-lilith";
+    row.id = "typing-row";
+    const bubble = document.createElement("div");
+    bubble.className = "bubble typing";
+    bubble.textContent = "…";
+    row.appendChild(bubble);
+    chatLog.appendChild(row);
+    chatLog.scrollTop = chatLog.scrollHeight;
+  }
+
+  function removeTyping() {
+    const row = el("typing-row");
+    if (row) row.remove();
+  }
+
+  function lastLilithBubble() {
+    const rows = chatLog.querySelectorAll(".msg-lilith .bubble");
+    return rows.length ? rows[rows.length - 1] : null;
+  }
+
+  // ============================== ОТПРАВКА ==============================
+
+  let lastUserText = "";
+  let altIndex = -1;
+  let altList = [];
+
+  function sendChat(text) {
     const input = el("chat-input");
-    const text = input.value.trim();
-    if (!text) return;
-    lastUserText = text;
+    const msg = (text != null ? text : input.value).trim();
+    if (!msg) return;
+    if (text == null) input.value = "";
+    lastUserText = msg;
     altIndex = -1;
     altList = [];
-    input.value = "";
-    addMessage("user", text);
-    // Лилит «думает»
-    el("dialogue-text").textContent = "…";
-    api("/api/chat", { method: "POST", body: JSON.stringify({ text: text }) })
+    addBubble("user", msg);
+    typingBubble();
+    api("/api/chat", { method: "POST", body: JSON.stringify({ text: msg }) })
       .then(function (res) {
-        if (res.reply) addMessage("assistant", res.reply);
-        else addMessage("assistant", "…");
-        // Лилит реагирует: меняет позу (эмоция) и раскованность (stage)
-        if (res.emotion) setAvatar(res.emotion, res.stage || currentStage);
-        // Повышение уровня отношений (фича Replika)
+        removeTyping();
+        if (res.reply) {
+          addBubble("assistant", res.reply);
+          setAvatar(res.emotion, res.stage || currentStage);
+        } else {
+          addBubble("assistant", "…");
+        }
         if (res.level_up) {
-          var tag = el("level-tag");
+          const tag = el("level-tag");
           if (tag) tag.textContent = "💜 " + res.level_up;
+          api("/api/me").then(fillLevel).catch(function () {});
         }
       })
       .catch(function (e) {
-        addMessage("assistant", "… (модель не ответила: " + (e.message || "ошибка") + ")");
+        removeTyping();
+        addBubble("assistant", "… (модель не ответила: " + (e.message || "ошибка") + ")");
       });
   }
 
-  // ---- Генерация образа в выбранном наряде (сервер сам рисует и пришлёт в Telegram)
+  function doSwipe() {
+    if (!lastUserText) return;
+    const last = lastLilithBubble();
+    if (last) last.textContent = "…";
+    typingBubble();
+    api("/api/chat/alternatives", { method: "POST", body: JSON.stringify({ text: lastUserText, n: 3 }) })
+      .then(function (res) {
+        removeTyping();
+        if (!res.alternatives || !res.alternatives.length) throw new Error("нет вариантов");
+        altList = res.alternatives;
+        altIndex = (altIndex + 1) % altList.length;
+        const reply = altList[altIndex];
+        const bubble = lastLilithBubble();
+        if (bubble) bubble.textContent = reply; else addBubble("assistant", reply);
+        setAvatar(detectEmotion(reply));
+      })
+      .catch(function (e) {
+        removeTyping();
+        addBubble("assistant", "… (не получилось: " + (e.message || "ошибка") + ")");
+      });
+  }
+
+  // ============================== БЫСТРЫЕ ПОДСКАЗКИ ==============================
+
+  const QUICK_PHRASES = ["😏 Покажи себя", "🩲 В белье", "💬 Как дела?", "🎨 Нарисуй нас", "📖 Что помнишь обо мне?"];
+
+  function renderChips() {
+    const wrap = el("quick-chips");
+    if (!wrap) return;
+    wrap.innerHTML = "";
+    QUICK_PHRASES.forEach(function (phrase) {
+      const chip = document.createElement("button");
+      chip.className = "chip";
+      chip.textContent = phrase;
+      chip.addEventListener("click", function () { sendChat(phrase); });
+      wrap.appendChild(chip);
+    });
+  }
+
+  // ============================== НАРЯД ==============================
+
   function generateOutfit() {
     const outfit = el("s-outfit").value.trim();
     if (!outfit) {
@@ -138,54 +238,28 @@
       });
   }
 
-  el("generate-outfit").addEventListener("click", generateOutfit);
+  // ============================== КНОПКИ ЧАТА ==============================
 
-  // Кнопка «в белье / одеться»
-  const clothesBtn = document.createElement("button");
-  clothesBtn.id = "clothes-btn";
-  clothesBtn.textContent = "🩲 В белье";
-  document.getElementById("input-row").appendChild(clothesBtn);
-  clothesBtn.addEventListener("click", function () {
+  el("send-btn").addEventListener("click", function () { sendChat(); });
+  el("chat-input").addEventListener("keydown", function (e) { if (e.key === "Enter") sendChat(); });
+  el("swipe-btn").addEventListener("click", doSwipe);
+  el("clothes-btn").addEventListener("click", function () {
     currentClothes = currentClothes === "lingerie" ? "" : "lingerie";
-    clothesBtn.textContent = currentClothes === "lingerie" ? "👗 Одеться" : "🩲 В белье";
+    el("clothes-btn").textContent = currentClothes === "lingerie" ? "👗" : "🩲";
     setAvatar(currentEmotion);
   });
+  el("generate-outfit").addEventListener("click", generateOutfit);
 
-  // ---- Свайпы: «🔄 Другой ответ» (фича Character.AI / SillyTavern)
-  let lastUserText = "";
-  let altIndex = -1;
-  let altList = [];
+  // ============================== ВКЛАДКИ ==============================
 
-  function doSwipe() {
-    if (!lastUserText) return;
-    const d = el("dialogue-text");
-    d.textContent = "…";
-    api("/api/chat/alternatives", { method: "POST", body: JSON.stringify({ text: lastUserText, n: 3 }) })
-      .then(function (res) {
-        if (!res.alternatives || !res.alternatives.length) throw new Error("нет вариантов");
-        altList = res.alternatives;
-        altIndex = (altIndex + 1) % altList.length;
-        addMessage("assistant", altList[altIndex]);
-      })
-      .catch(function (e) {
-        addMessage("assistant", "… (не получилось: " + (e.message || "ошибка") + ")");
-      });
-  }
-
-  el("swipe-btn").addEventListener("click", doSwipe);
-
-  el("send-btn").addEventListener("click", sendChat);
-  el("chat-input").addEventListener("keydown", function (e) { if (e.key === "Enter") sendChat(); });
-
-  // ---- Вкладки
   document.querySelectorAll(".tab").forEach(function (btn) {
     btn.addEventListener("click", function () {
       document.querySelectorAll(".tab").forEach(function (b) { b.classList.remove("active"); });
       document.querySelectorAll(".panel").forEach(function (p) { p.classList.remove("active"); });
       btn.classList.add("active");
       const tab = btn.dataset.tab;
-      if (tab === "chat") { el("dialogue-box").style.display = "block"; return; }
-      el("dialogue-box").style.display = "none";
+      if (tab === "chat") { el("chat-box").style.display = "flex"; return; }
+      el("chat-box").style.display = "none";
       el("tab-" + tab).classList.add("active");
       if (tab === "gallery") loadGallery();
       if (tab === "memory") loadMemory();
@@ -193,7 +267,8 @@
     });
   });
 
-  // ---- Настройки
+  // ============================== НАСТРОЙКИ ==============================
+
   function fillSettings(d) {
     el("s-name").value = d.name || "";
     el("s-mode").value = String(d.mode);
@@ -204,16 +279,17 @@
     el("s-speech").value = d.speech_style || "";
   }
 
-  // Уровень отношений (фича Replika): плашка рядом с именем Лилит
   function fillLevel(d) {
-    var tag = el("level-tag");
+    const tag = el("level-tag");
     if (!tag) return;
-    var lvl = d.level || 1;
-    var name = d.level_name || "";
-    var xpToNext = d.xp_to_next || 0;
-    var progress = Math.round((d.level_progress || 0) * 100);
+    const lvl = d.level || 1;
+    const name = d.level_name || "";
     tag.textContent = "💜 " + lvl + "/7 " + name;
-    tag.title = "Уровень отношений: " + name + ". До следующего уровня: " + xpToNext + " XP (прогресс " + progress + "%)";
+    const fill = el("xp-fill");
+    if (fill) {
+      const progress = Math.max(0, Math.min(1, d.level_progress || 0));
+      fill.style.width = Math.round(progress * 100) + "%";
+    }
   }
 
   el("save").addEventListener("click", function () {
@@ -233,12 +309,13 @@
         el("save-msg").textContent = res.ok ? "✅ Сохранено!" : "❌ Ошибка";
         if (res.ok) return api("/api/me");
       })
-      .then(function (me) { if (me) { fillSettings(me); currentStyle = me.image_style || "realistic"; setAvatar(); } })
+      .then(function (me) { if (me) { fillSettings(me); currentStyle = me.image_style || "realistic"; fillLevel(me); setAvatar(); } })
       .catch(function (e) { el("save-msg").textContent = "❌ " + e.message; })
       .finally(function () { el("save").disabled = false; });
   });
 
-  // ---- Галерея и память (как раньше)
+  // ============================== ГАЛЕРЕЯ / ДНЕВНИК / ПАМЯТЬ ==============================
+
   function loadGallery() {
     el("gallery").innerHTML = '<p class="hint">Загрузка…</p>';
     api("/api/gallery").then(function (res) {
@@ -266,19 +343,19 @@
   function loadDiary() {
     el("diary").innerHTML = '<p class="hint">Загрузка…</p>';
     api("/api/diary").then(function (res) {
-      var entries = res.entries || [];
+      const entries = res.entries || [];
       if (!entries.length) {
         el("diary").innerHTML = '<p class="hint">Пока пусто. Лилит напишет первую запись вечером, после вашего разговора 💜</p>';
         return;
       }
       el("diary").innerHTML = "";
       entries.forEach(function (item) {
-        var card = document.createElement("div");
+        const card = document.createElement("div");
         card.className = "diary-item";
-        var date = document.createElement("div");
+        const date = document.createElement("div");
         date.className = "diary-date";
         date.textContent = "📅 " + item.date;
-        var text = document.createElement("div");
+        const text = document.createElement("div");
         text.textContent = item.text;
         card.appendChild(date);
         card.appendChild(text);
@@ -308,37 +385,39 @@
     });
   }
 
-  // ---- Старт
-  // Если приложение открыто НЕ внутри Telegram (обычный браузер) — Telegram
-  // не выдаёт «пропуск» (initData), и API отвечает 401. Показываем подсказку.
+  // ============================== СТАРТ ==============================
+
   if (!window.Telegram || !window.Telegram.WebApp) {
-    var d0 = document.getElementById("dialogue-text");
-    if (d0) {
-      d0.textContent = "🖤 Это приложение Лилит. Открой его ВНУТРИ Telegram: напиши боту /app — и всё заработает. Ссылка в обычном браузере работать не будет (Telegram не пускает).";
-    }
-    try {
-      var a0 = document.getElementById("avatar");
-      if (a0) a0.src = "/api/avatar?style=realistic&emotion=flirt";
-    } catch (e) { /* ignore */ }
+    const d0 = el("chat-placeholder");
+    if (d0) d0.textContent = "🖤 Это приложение Лилит. Открой его ВНУТРИ Telegram: напиши боту /app — и всё заработает.";
   }
 
-  // Любая ошибка ниже должна ПОКАЗЫВАТЬСЯ на экране, а не убивать приложение молча
   window.addEventListener("error", function (ev) {
     try {
-      var d = document.getElementById("dialogue-text");
+      const d = el("chat-placeholder");
       if (d) d.textContent = "⚠️ Ошибка: " + (ev.message || "неизвестная") + ". Обнови Mini App.";
     } catch (e) { /* ignore */ }
   });
+
+  renderChips();
 
   api("/api/me")
     .then(function (d) {
       fillSettings(d);
       fillLevel(d);
       currentStyle = d.image_style || "realistic";
-      setAvatar("flirt");
-      addMessage("assistant", "Ну привет, мой дорогой… Я уже заждалась. Что скажешь?");
+      // Подгружаем историю диалога
+      return api("/api/history").then(function (h) {
+        const messages = h.messages || [];
+        messages.forEach(function (m) { addBubble(m.role, m.content); });
+        setAvatar("flirt");
+        if (!messages.length) {
+          addBubble("assistant", "Ну привет, мой дорогой… Я уже заждалась. Что скажешь?");
+        }
+      });
     })
     .catch(function (e) {
-      el("dialogue-text").textContent = "Ошибка: " + e.message + ". Открой бота и нажми /start.";
+      const d = el("chat-placeholder");
+      if (d) d.textContent = "Ошибка: " + e.message + ". Открой бота и нажми /start.";
     });
 })();

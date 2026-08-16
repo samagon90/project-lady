@@ -96,6 +96,7 @@ class MiniAppServer:
         self.app.router.add_post("/api/chat", self._api_chat)
         self.app.router.add_post("/api/chat/alternatives", self._api_chat_alternatives)
         self.app.router.add_get("/api/diary", self._api_diary)
+        self.app.router.add_get("/api/history", self._api_history)
 
     # ------------------------------------------------------------- static
 
@@ -151,8 +152,18 @@ class MiniAppServer:
             if not base.exists():
                 base = Path("assets/lilith_avatar_anime.png")
         elif clothes == "lingerie":
-            # Лилит в нижнем белье (если файл есть — иначе обычная эмоция)
+            # Лилит в нижнем белье. Если файла эмоции ещё нет — берём БЛИЖАЙШУЮ
+            # существующую эмоцию в белье (чтобы не показывать одетую версию).
+            _LINGERIE_FALLBACK = {
+                "confused": "thinking",
+                "contempt": "serious",
+                "disgust": "bored",
+                "relief": "happy",
+            }
             base = Path("assets/emotions/lingerie") / f"lilith_{emotion}_lingerie.png"
+            if not base.exists():
+                alt = _LINGERIE_FALLBACK.get(emotion, emotion)
+                base = Path("assets/emotions/lingerie") / f"lilith_{alt}_lingerie.png"
             if not base.exists():
                 base = Path("assets/emotions") / f"lilith_{emotion}.png"
         elif emotion in fallback_map and not (Path("assets/emotions") / f"lilith_{emotion}.png").exists():
@@ -397,6 +408,31 @@ class MiniAppServer:
                         "text": e.text,
                     }
                     for e in entries
+                ]
+            }
+        )
+
+    async def _api_history(self, request: web.Request) -> web.Response:
+        """Последние сообщения диалога (для истории чата в Mini App)."""
+        uid = self._user_id(request)
+        if uid is None:
+            return web.json_response({"error": "unauthorized"}, status=401)
+        async with self.db.session() as session:
+            user = await UserRepository(session).get_by_telegram_id(uid)
+            if user is None:
+                return web.json_response({"error": "not_registered"}, status=404)
+            from src.database.repositories import ConversationRepository, MessageRepository
+
+            conversation = await ConversationRepository(session).get_active(user)
+            messages = await MessageRepository(session).recent(
+                user.id, conversation.id, limit=30
+            )
+        return web.json_response(
+            {
+                "messages": [
+                    {"role": m.role, "content": m.content}
+                    for m in messages
+                    if m.role in ("user", "assistant")
                 ]
             }
         )

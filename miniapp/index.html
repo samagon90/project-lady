@@ -9,30 +9,37 @@
 <body>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 
-<!-- Визуальная новелла: аватар всегда на экране, меняется по диалогу -->
 <div id="novel">
+  <!-- Визуальная новелла: Лилит всегда на экране, эмоции меняются по диалогу -->
   <div id="avatar-wrap">
     <img id="avatar" src="/api/avatar?style=realistic&emotion=neutral" alt="Лилит">
-    <div id="emotion-tag"></div>
+    <div id="emotion-tag" title="Эмоция"></div>
     <div id="mood-tag" title="Раскованность"></div>
+    <div id="xp-bar" class="xp-bar" title="Уровень отношений"><div id="xp-fill" class="xp-fill"></div></div>
   </div>
 
-  <div id="dialogue-box">
-    <div id="speaker">🖤 Лилит <span id="level-tag" class="level-tag" title="Уровень отношений"></span></div>
-    <div id="dialogue-text">Загрузка…</div>
+  <!-- Чат -->
+  <div id="chat-box">
+    <div id="chat-header">
+      <span id="speaker">🖤 Лилит</span>
+      <span id="level-tag" class="level-tag" title="Уровень отношений"></span>
+    </div>
+    <div id="chat-log"><div class="hint" id="chat-placeholder">Загрузка…</div></div>
+    <div id="quick-chips"></div>
     <div id="input-row">
       <input id="chat-input" type="text" placeholder="Напиши Лилит…" autocomplete="off">
+      <button id="clothes-btn" title="В белье / одеться">🩲</button>
       <button id="swipe-btn" title="Другой ответ">🔄</button>
       <button id="send-btn">➤</button>
     </div>
   </div>
 
   <nav id="mini-nav">
-    <button class="tab active" data-tab="chat">💬 Чат</button>
-    <button class="tab" data-tab="diary">📖</button>
-    <button class="tab" data-tab="settings">⚙️</button>
-    <button class="tab" data-tab="gallery">🖼</button>
-    <button class="tab" data-tab="memory">🧠</button>
+    <button class="tab active" data-tab="chat">💬<span>Чат</span></button>
+    <button class="tab" data-tab="diary">📖<span>Дневник</span></button>
+    <button class="tab" data-tab="settings">⚙️<span>Настройки</span></button>
+    <button class="tab" data-tab="gallery">🖼<span>Галерея</span></button>
+    <button class="tab" data-tab="memory">🧠<span>Память</span></button>
   </nav>
 
   <section id="tab-diary" class="panel">
