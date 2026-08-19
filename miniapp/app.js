@@ -626,9 +626,9 @@
       return api("/api/history").then(function (h) {
         const messages = h.messages || [];
         messages.forEach(function (m) { addBubble(m.role, m.content); });
-        setAvatar("flirt");
+        setAvatar("passion");
         if (!messages.length) {
-          addBubble("assistant", "Ну привет, мой дорогой… Я уже заждалась. Что скажешь?");
+          addBubble("assistant", "Ну привет, мой дорогой… Я уже заждалась. И я уже разгорячилась… Что скажешь?");
         }
       });
     })

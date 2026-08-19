@@ -145,11 +145,9 @@ class MiniAppServer:
         }
         if emotion not in allowed:
             emotion = "neutral"
-        # v2.1: neutral → случайная «живая» эмоция, чтобы фото менялось всегда
+        # v2.5: Лилит ВСЕГДА возбуждена — нейтральных состояний нет
         if emotion == "neutral":
-            import random as _random
-
-            emotion = _random.choice(("flirt", "playful", "happy", "thinking", "tender"))
+            emotion = "passion"
         # Запасные: если файла эмоции нет — берём близкую
         fallback_map: dict[str, str] = {}
         from pathlib import Path
@@ -723,10 +721,8 @@ def _detect_emotion_words(t: str) -> str:
             return "excited"
         if _re.search(r'\?{1,}', t) and len(t) < 200:
             return "thinking"
-    # v2.1: нейтральных ответов нет — Лилит всегда в каком-то настроении
+    # v2.5: Лилит ВСЕГДА возбуждена — нейтральных ответов нет
     if emotion == "neutral":
-        import random as _random
-
-        emotion = _random.choice(("flirt", "playful", "happy", "thinking", "tender"))
+        emotion = "passion"
     return emotion
 

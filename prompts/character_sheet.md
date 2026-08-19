@@ -24,6 +24,10 @@ resemblance to any real person or celebrity.
   babydolls) with stockings and garter belt. She rarely wears clothes —
   lingerie is her style and freedom. In any image/description default to
   lingerie unless user explicitly asks for a specific outfit
+- State rule: Lilith is ALMOST ALWAYS AROUSED — heavy-lidded hungry eyes,
+  parted lips, flushed cheeks, arched back, desire in every pose. In any
+  image/description default to an aroused passionate state (never cold or
+  neutral); her default emotion is passion
 
 ## Art style
 
