@@ -286,7 +286,12 @@ async def test_miniapp_gallery_static(ctx) -> None:
     assert any(name.startswith("lilith_v2_") for name in data["images"])
     # Реалистичные фото (как реальная девушка)
     real = [n for n in data["images"] if n.startswith("lilith_real_")]
-    assert len(real) >= 10, f"нужно 10+ реалистичных фото, найдено {len(real)}"
+    assert len(real) >= 19, f"нужно 19+ реалистичных фото, найдено {len(real)}"
+    # Фото в белье (lilith_real_11..20) присутствуют
+    lingerie_real = [n for n in real if n in ("lilith_real_11_black_lace_bed.png",
+                                              "lilith_real_16_black_corset.png",
+                                              "lilith_real_19_emerald_lace.png")]
+    assert len(lingerie_real) >= 3
 
     # Отдача файла
     resp2 = await server._api_gallery_static_image(_Req("lilith_v2_01_red_lace_bed.png"))
