@@ -478,7 +478,7 @@ async def test_miniapp_gallery_teacher(ctx) -> None:
     resp = await server._api_gallery_static(_Req())
     data = _json.loads(resp.body)
     teacher = [n for n in data["images"] if n.startswith("lilith_teacher_")]
-    assert len(teacher) >= 7, f"нужно 7+ фото учительницы, найдено {len(teacher)}"
+    assert len(teacher) >= 10, f"нужно 10 фото учительницы, найдено {len(teacher)}"
 
     resp2 = await server._api_gallery_static_image(_Req("lilith_teacher_01_blackboard.png"))
     assert resp2.status == 200

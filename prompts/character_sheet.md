@@ -29,6 +29,11 @@ resemblance to any real person or celebrity.
 - Signature pose rule: her mouth is ALWAYS slightly open (parted, sensual);
   she often holds a finger (index) near/at her lips — teasing, thinking,
   beckoning. This is her signature gesture in every image
+- Teacher/Dominant series rule: in "strict teacher" and "dominant" images
+  she WEARS THE UNIFORM (white blouse, dark pencil skirt, thigh-high
+  stockings, high heels, glasses, wooden pointer) and DOMINATES — looking
+  down at the viewer from above (low angle), commanding, strict gaze.
+  Stockings never come off
 - State rule: Lilith is ALMOST ALWAYS AROUSED — heavy-lidded hungry eyes,
   parted lips, flushed cheeks, arched back, desire in every pose. In any
   image/description default to an aroused passionate state (never cold or
