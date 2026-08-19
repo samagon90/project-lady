@@ -361,15 +361,24 @@ def run(cmd: list[str]) -> None:
 
 
 def build_web_assets(work: Path) -> None:
-    """Собирает web-приложение с фото в JPEG (компактно для APK)."""
-    import re
-
+    """Собирает web-приложение: ВСЕ фото галереи + сценарии (JPEG)."""
     from PIL import Image  # type: ignore
 
     web = work / "novel"
     (web / "images").mkdir(parents=True, exist_ok=True)
 
-    # сценарии + замена расширений на .jpg
+    # ВСЕ фото из assets/gallery -> JPEG (и для сцен, и для галереи)
+    gallery_names: list[str] = []
+    for src in sorted((ROOT / "assets" / "gallery").glob("*.png")):
+        jpg = src.stem + ".jpg"
+        dst = web / "images" / jpg
+        if not dst.exists():
+            im = Image.open(src).convert("RGB")
+            im.thumbnail((1080, 1920), Image.LANCZOS)
+            im.save(dst, "JPEG", quality=82, optimize=True)
+        gallery_names.append(jpg)
+
+    # сценарии (46 фото — подмножество всех)
     payload: dict = {"scenarios": {}}
     for sid, sc in SCENARIOS.items():
         nodes = {}
@@ -381,21 +390,18 @@ def build_web_assets(work: Path) -> None:
             "title": sc["title"], "subtitle": sc["subtitle"],
             "start": sc["start"], "nodes": nodes,
         }
-        for node in sc["nodes"].values():
-            src = ROOT / "assets" / "gallery" / node["image"]
-            dst = web / "images" / node["image"].replace(".png", ".jpg")
-            if not dst.exists():
-                im = Image.open(src).convert("RGB")
-                im.thumbnail((1080, 1920), Image.LANCZOS)
-                im.save(dst, "JPEG", quality=82, optimize=True)
 
     js = "window.NOVEL_DATA = " + json.dumps(payload, ensure_ascii=False, indent=1) + ";\n"
     (web / "scenarios.js").write_text(js, encoding="utf-8")
+    # галерея: список ВСЕХ фото (серия определяется по префиксу имени)
+    gj = "window.GALLERY = " + json.dumps(gallery_names, ensure_ascii=False) + ";\n"
+    (web / "gallery.js").write_text(gj, encoding="utf-8")
     # статика
     for f in ("index.html", "style.css", "app.js"):
         shutil.copy2(ROOT / "novel_app" / "web" / f, web / f)
     total = sum(f.stat().st_size for f in (web / "images").glob("*"))
-    print(f"web-ассеты: {len(list((web/'images').glob('*')))} фото, {total//1024//1024} МБ")
+    n = len(list((web / "images").glob("*")))
+    print(f"web-ассеты: {n} фото, {total//1024//1024} МБ")
 
 
 def _make_key_cert():
@@ -463,17 +469,19 @@ def sign_v1(apk: Path) -> tuple:
         return base64.b64encode(hashlib.sha256(data).digest()).decode()
 
     # 3. MANIFEST.MF
-    mf_lines = ["Manifest-Version: 1.0", "Created-By: 1.0 (Lilith)"]
+    # ВАЖНО: секции в MANIFEST.MF и диджесты секций в CERT.SF должны
+    # СОВПАДАТЬ байт-в-байт. Раньше в MF писалось SHA-256-Digest, а секция
+    # для CERT.SF содержала SHA1-Digest — Android видел несовпадение и
+    # отклонял пакет. Теперь обе части используют ОДНУ строку section.
     sections: dict[str, str] = {}
+    mf_parts = ["Manifest-Version: 1.0", "Created-By: 1.0 (Lilith)"]
     for path, data in entries:
-        section = f"Name: {path}\r\nSHA1-Digest: {b64sha1(data)}\r\n\r\n"
+        section = f"Name: {path}\r\nSHA-256-Digest: {b64sha1(data)}\r\n\r\n"
         sections[path] = section
-        mf_lines.append("")
-        mf_lines.append(f"Name: {path}")
-        mf_lines.append(f"SHA-256-Digest: {b64sha1(data)}")
-    manifest_mf = "\r\n".join(mf_lines) + "\r\n"
-    # MANIFEST.MF заканчивается переводом строки; тело для digest — без финального \r\n? 
-    # jarsigner: digest считается по байтам манифеста целиком.
+        mf_parts.append("")
+        mf_parts.append(f"Name: {path}")
+        mf_parts.append(f"SHA-256-Digest: {b64sha1(data)}")
+    manifest_mf = "\r\n".join(mf_parts) + "\r\n"
     manifest_body = manifest_mf
 
     # 4. CERT.SF
@@ -603,6 +611,32 @@ def sign_v2(apk: Path, key, cert) -> None:
     print(f"v2: APK Signing Block ({len(block)} б) + подпись RSA-SHA256, диджесты по финальному файлу")
 
 
+def _sign_with_apksigner(apk: Path, java: Path) -> None:
+    """Подписывает APK официальным apksigner (com.android.apksigner.ApkSignerTool).
+    Создаёт keystore через keytool и подписывает v1+v2."""
+    import subprocess as _sp
+
+    keytool = JAVA_HOME / "bin" / "keytool"
+    ks = WORK / "lilith.keystore"
+    if not ks.exists():
+        r = _sp.run([str(keytool), "-genkeypair", "-keystore", str(ks),
+                     "-alias", "lilith", "-storepass", "lilith123", "-keypass", "lilith123",
+                     "-dname", "CN=Lilith Novel", "-keyalg", "RSA", "-keysize", "2048",
+                     "-validity", "10000", "-noprompt"], capture_output=True, text=True)
+        if r.returncode != 0:
+            raise SystemExit(f"keytool: {r.stderr[-500:]}")
+    tmp = apk.with_suffix(".unsigned.apk")
+    apk.rename(tmp)
+    r = _sp.run([str(java), "-jar", "/tmp/apksigner.jar", "sign",
+                 "--ks", str(ks), "--ks-pass", "pass:lilith123",
+                 "--ks-key-alias", "lilith", "--key-pass", "pass:lilith123",
+                 "--out", str(apk), str(tmp)], capture_output=True, text=True)
+    if r.returncode != 0:
+        raise SystemExit(f"apksigner: {r.stdout[-800:]}\n{r.stderr[-800:]}")
+    tmp.unlink()
+    print("apksigner: подпись v1+v2 (официальная реализация apksig)")
+
+
 def datetime_now_utc():
     from datetime import UTC, datetime
 
@@ -673,8 +707,8 @@ def main() -> None:
             if f.is_file():
                 z.write(f, "assets/novel/" + f.relative_to(WORK / "novel").as_posix())
 
-    # 5. Подпись: схема v1 (JAR). v2-блок НЕ добавляем: targetSdk 28 —
-    #    Android принимает v1-only, а битый v2-блок заставлял отклонять пакет.
+    # 5. Подпись: схема v1 (JAR) с ИСПРАВЛЕННЫМИ диджестами секций.
+    #    (v2-блок не добавляем: targetSdk 28, Android принимает v1.)
     sign_v1(OUT)
 
     size_mb = OUT.stat().st_size / 1024 / 1024
