@@ -1,0 +1,534 @@
+"""Ручная сборка APK «Лилит: Новелла» без Android SDK (офлайн-окружение).
+
+Цепочка:
+  Java-код (MainActivity.smali) -> smali.jar -> classes.dex
+  AndroidManifest.xml (бинарный AXML, генератор ниже)
+  web-приложение (novel_app/web, фото конвертируются в JPEG)
+  zip-упаковка -> jarsigner (JDK из jdk4py) -> LilithNovel.apk
+
+Запуск:
+  python3 scripts/build_apk_manual.py
+"""
+
+from __future__ import annotations
+
+import io
+import json
+import os
+import shutil
+import struct
+import subprocess
+import sys
+import zipfile
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+
+from src.novel import SCENARIOS  # noqa: E402
+
+OUT = ROOT / "novel_app" / "LilithNovel.apk"
+WORK = ROOT / "novel_app" / "build_tmp"
+
+# Пути инструментов
+JAVA_HOME = None
+try:
+    import jdk4py  # type: ignore
+
+    JAVA_HOME = Path(jdk4py.JAVA_HOME)
+except Exception:
+    pass
+SMALI_JAR = Path("/tmp/apktools/rc_repo/bin/smali.jar")
+
+
+# =====================================================================
+# 1. Генератор бинарного AndroidManifest.xml (AXML)
+# =====================================================================
+
+def uleb128(n: int) -> bytes:
+    out = bytearray()
+    while True:
+        b = n & 0x7F
+        n >>= 7
+        if n:
+            out.append(b | 0x80)
+        else:
+            out.append(b)
+            return bytes(out)
+
+
+class StringPool:
+    def __init__(self) -> None:
+        self.strings: list[str] = []
+        self.index: dict[str, int] = {}
+
+    def add(self, s: str) -> int:
+        if s not in self.index:
+            self.index[s] = len(self.strings)
+            self.strings.append(s)
+        return self.index[s]
+
+    def build(self) -> bytes:
+        data = bytearray()
+        offsets: list[int] = []
+        for s in self.strings:
+            raw = s.encode("utf-8")
+            utf16_len = len(s.encode("utf-16-le")) // 2
+            offsets.append(len(data))
+            # Формат ResStringPool (UTF-8): [utf16len][utf8len][bytes]0x00 + pad до 4
+            data += uleb128(utf16_len)
+            data += uleb128(len(raw))
+            data += raw
+            data += b"\x00"
+            while len(data) % 4:
+                data += b"\x00"
+        n = len(self.strings)
+        header = struct.pack("<HHIIIIII", 0x0001, 28, 28 + 4 * n + len(data),
+                             n, 0, 0x00000100, 28 + 4 * n, 0)
+        body = b"".join(struct.pack("<I", o) for o in offsets) + bytes(data)
+        return header + body
+
+
+class AXMLWriter:
+    """Пишет бинарный Android XML (минимальный, без ресурсов)."""
+
+    def __init__(self) -> None:
+        self.sp = StringPool()
+        self.res_ids: list[int] = []
+
+    def _chunk(self, ctype: int, body: bytes, hsize: int = 16, line: int = 1) -> bytes:
+        return struct.pack("<HHI", ctype, hsize, hsize + len(body)) + struct.pack(
+            "<II", line, 0
+        ) + body if hsize == 16 else struct.pack("<HHI", ctype, hsize, hsize + len(body)) + body
+
+    # ---------------------------------------------------------------- элементы
+
+    def build(self, root: dict) -> bytes:
+        """root: дерево {tag, ns, attrs:[(ns, name, value, type, data)], children:[]}"""
+        # Сначала регистрируем ВСЕ строки
+        chunks = bytearray()
+
+        def reg_node(node: dict) -> None:
+            self.sp.add(node["tag"])
+            if node.get("ns"):
+                self.sp.add(node["ns"])
+            for ns, name, _v, _t, _d in node.get("attrs", []):
+                if ns:
+                    self.sp.add(ns)
+                self.sp.add(name)
+
+        def walk(node: dict) -> None:
+            reg_node(node)
+            for c in node.get("children", []):
+                walk(c)
+
+        walk(root)
+
+        # Значения атрибутов тоже регистрируем ДО построения пула
+        def reg_values(node: dict) -> None:
+            for _ns, _name, value, _t, _d in node.get("attrs", []):
+                if value is not None:
+                    self.sp.add(str(value))
+            for c in node.get("children", []):
+                reg_values(c)
+
+        reg_values(root)
+        # namespace uri + префикс
+        self.sp.add("http://schemas.android.com/apk/res/android")
+        self.sp.add("android")
+        # ресурс-мапа
+        for node_holder in ([root] + list(_flatten(root))):
+            for ns, name, _v, _t, _d in node_holder.get("attrs", []):
+                if name in _RES_IDS:
+                    rid = _RES_IDS[name]
+                    if rid not in self.res_ids:
+                        self.res_ids.append(rid)
+
+        chunks += self.sp.build()
+        # resource map chunk
+        rm = struct.pack("<HHI", 0x0180, 8, 8 + 4 * len(self.res_ids))
+        rm += b"".join(struct.pack("<I", r) for r in self.res_ids)
+        chunks += rm
+
+        # namespace start (android)
+        ns_uri = self.sp.index["http://schemas.android.com/apk/res/android"]
+        ns_prefix = self.sp.index["android"]
+        chunks += struct.pack("<HHIIIII", 0x0100, 16, 24, 1, 0, ns_prefix, ns_uri)
+
+        def emit(node: dict) -> None:
+            nonlocal chunks
+            tag_i = self.sp.index[node["tag"]]
+            ns_i = self.sp.index[node["ns"]] if node.get("ns") else 0xFFFFFFFF
+            attrs = node.get("attrs", [])
+            n_attrs = len(attrs)
+            body = struct.pack("<IIHHHHHH", ns_i, tag_i, 20, 20, n_attrs, 0, 0, 0)
+            for ns, name, value, vtype, data in attrs:
+                a_ns = self.sp.index[ns] if ns else 0xFFFFFFFF
+                a_name = self.sp.index[name]
+                rid = _RES_IDS.get(name, 0)
+                if value is not None:
+                    raw = self.sp.index.get(str(value), 0xFFFFFFFF)
+                else:
+                    raw = 0xFFFFFFFF
+                tv = struct.pack("<HBB", 8, 0, vtype) + struct.pack("<I", data)
+                body += struct.pack("<III", a_ns, a_name, raw) + tv
+            chunks += struct.pack("<HHIII", 0x0102, 16, 16 + len(body), 1, 0) + body
+            for c in node.get("children", []):
+                emit(c)
+            chunks += struct.pack("<HHIIIII", 0x0103, 16, 24, 1, 0, ns_i, tag_i)
+
+        emit(root)
+        chunks += struct.pack("<HHIIIII", 0x0101, 16, 24, 1, 0, ns_prefix, ns_uri)
+
+        header = struct.pack("<HHI", 0x0003, 8, 8 + len(chunks))
+        return header + bytes(chunks)
+
+
+def _flatten(node: dict):
+    for c in node.get("children", []):
+        yield c
+        yield from _flatten(c)
+
+
+# Resource ID атрибутов android: (из public.xml)
+_RES_IDS = {
+    "theme": 0x01010000,
+    "label": 0x01010001,
+    "icon": 0x01010002,
+    "name": 0x01010003,
+    "exported": 0x01010010,
+    "allowBackup": 0x01010280,
+}
+
+# Типы значений
+TYPE_STRING = 0x03
+TYPE_INT_BOOLEAN = 0x12
+TYPE_REFERENCE = 0x01
+
+
+def build_manifest() -> bytes:
+    w = AXMLWriter()
+    root = {
+        "tag": "manifest",
+        "ns": "http://schemas.android.com/apk/res/android",
+        "attrs": [
+            (None, "package", "com.lilith.novel", TYPE_STRING, 0),
+        ],
+        "children": [
+            {
+                "tag": "application",
+                "ns": "http://schemas.android.com/apk/res/android",
+                "attrs": [
+                    ("http://schemas.android.com/apk/res/android", "label",
+                     "Лилит: Новелла", TYPE_STRING, 0),
+                    ("http://schemas.android.com/apk/res/android", "allowBackup",
+                     "true", TYPE_INT_BOOLEAN, 0xFFFFFFFF),
+                ],
+                "children": [
+                    {
+                        "tag": "activity",
+                        "ns": "http://schemas.android.com/apk/res/android",
+                        "attrs": [
+                            ("http://schemas.android.com/apk/res/android", "name",
+                             ".MainActivity", TYPE_STRING, 0),
+                            ("http://schemas.android.com/apk/res/android", "exported",
+                             "true", TYPE_INT_BOOLEAN, 0xFFFFFFFF),
+                        ],
+                        "children": [
+                            {
+                                "tag": "intent-filter",
+                                "attrs": [],
+                                "children": [
+                                    {"tag": "action", "attrs": [
+                                        ("http://schemas.android.com/apk/res/android", "name",
+                                         "android.intent.action.MAIN", TYPE_STRING, 0)],
+                                     "children": []},
+                                    {"tag": "category", "attrs": [
+                                        ("http://schemas.android.com/apk/res/android", "name",
+                                         "android.intent.category.LAUNCHER", TYPE_STRING, 0)],
+                                     "children": []},
+                                ],
+                            }
+                        ],
+                    }
+                ],
+            }
+        ],
+    }
+    return w.build(root)
+
+
+# =====================================================================
+# 2. Сборка
+# =====================================================================
+
+MAIN_SMALI = """\
+.class public Lcom/lilith/novel/MainActivity;
+.super Landroid/app/Activity;
+
+.field private webView:Landroid/webkit/WebView;
+
+.method public constructor <init>()V
+    .registers 1
+
+    invoke-direct {p0}, Landroid/app/Activity;-><init>()V
+
+    return-void
+.end method
+
+.method protected onCreate(Landroid/os/Bundle;)V
+    .registers 8
+
+    invoke-super {p0, p1}, Landroid/app/Activity;->onCreate(Landroid/os/Bundle;)V
+
+    new-instance v0, Landroid/webkit/WebView;
+    invoke-direct {v0, p0}, Landroid/webkit/WebView;-><init>(Landroid/content/Context;)V
+    iput-object v0, p0, Lcom/lilith/novel/MainActivity;->webView:Landroid/webkit/WebView;
+
+    invoke-virtual {v0}, Landroid/webkit/WebView;->getSettings()Landroid/webkit/WebSettings;
+    move-result-object v1
+
+    const/4 v2, 0x1
+    invoke-virtual {v1, v2}, Landroid/webkit/WebSettings;->setJavaScriptEnabled(Z)V
+    invoke-virtual {v1, v2}, Landroid/webkit/WebSettings;->setDomStorageEnabled(Z)V
+    invoke-virtual {v1, v2}, Landroid/webkit/WebSettings;->setAllowFileAccess(Z)V
+    invoke-virtual {v1, v2}, Landroid/webkit/WebSettings;->setAllowContentAccess(Z)V
+    invoke-virtual {v1, v2}, Landroid/webkit/WebSettings;->setLoadWithOverviewMode(Z)V
+    invoke-virtual {v1, v2}, Landroid/webkit/WebSettings;->setUseWideViewPort(Z)V
+
+    new-instance v3, Landroid/webkit/WebViewClient;
+    invoke-direct {v3}, Landroid/webkit/WebViewClient;-><init>()V
+    invoke-virtual {v0, v3}, Landroid/webkit/WebView;->setWebViewClient(Landroid/webkit/WebViewClient;)V
+
+    const-string v4, "file:///android_asset/novel/index.html"
+    invoke-virtual {v0, v4}, Landroid/webkit/WebView;->loadUrl(Ljava/lang/String;)V
+
+    invoke-virtual {p0, v0}, Landroid/app/Activity;->setContentView(Landroid/view/View;)V
+
+    return-void
+.end method
+
+.method public onKeyDown(ILandroid/view/KeyEvent;)Z
+    .registers 6
+
+    const/4 v0, 0x4
+    if-ne p1, v0, :cond_default
+
+    iget-object v1, p0, Lcom/lilith/novel/MainActivity;->webView:Landroid/webkit/WebView;
+    if-eqz v1, :cond_default
+    invoke-virtual {v1}, Landroid/webkit/WebView;->canGoBack()Z
+    move-result v2
+    if-eqz v2, :cond_default
+
+    invoke-virtual {v1}, Landroid/webkit/WebView;->goBack()V
+    const/4 v0, 0x1
+    return v0
+
+    :cond_default
+    invoke-super {p0, p1, p2}, Landroid/app/Activity;->onKeyDown(ILandroid/view/KeyEvent;)Z
+    move-result v0
+    return v0
+.end method
+"""
+
+
+def run(cmd: list[str]) -> None:
+    print(">", " ".join(str(c) for c in cmd)[:120])
+    r = subprocess.run([str(c) for c in cmd], capture_output=True, text=True)
+    if r.returncode != 0:
+        print(r.stdout[-2000:])
+        print(r.stderr[-2000:])
+        raise SystemExit(f"Ошибка: {cmd[0]}")
+
+
+def build_web_assets(work: Path) -> None:
+    """Собирает web-приложение с фото в JPEG (компактно для APK)."""
+    import re
+
+    from PIL import Image  # type: ignore
+
+    web = work / "novel"
+    (web / "images").mkdir(parents=True, exist_ok=True)
+
+    # сценарии + замена расширений на .jpg
+    payload: dict = {"scenarios": {}}
+    for sid, sc in SCENARIOS.items():
+        nodes = {}
+        for nid, node in sc["nodes"].items():
+            n = dict(node)
+            n["image"] = node["image"].replace(".png", ".jpg")
+            nodes[nid] = n
+        payload["scenarios"][sid] = {
+            "title": sc["title"], "subtitle": sc["subtitle"],
+            "start": sc["start"], "nodes": nodes,
+        }
+        for node in sc["nodes"].values():
+            src = ROOT / "assets" / "gallery" / node["image"]
+            dst = web / "images" / node["image"].replace(".png", ".jpg")
+            if not dst.exists():
+                im = Image.open(src).convert("RGB")
+                im.thumbnail((1080, 1920), Image.LANCZOS)
+                im.save(dst, "JPEG", quality=82, optimize=True)
+
+    js = "window.NOVEL_DATA = " + json.dumps(payload, ensure_ascii=False, indent=1) + ";\n"
+    (web / "scenarios.js").write_text(js, encoding="utf-8")
+    # статика
+    for f in ("index.html", "style.css", "app.js"):
+        shutil.copy2(ROOT / "novel_app" / "web" / f, web / f)
+    total = sum(f.stat().st_size for f in (web / "images").glob("*"))
+    print(f"web-ассеты: {len(list((web/'images').glob('*')))} фото, {total//1024//1024} МБ")
+
+
+def sign_v1(apk: Path) -> None:
+    """JAR-подпись APK (схема v1) — как делает jarsigner, но на Python.
+
+    Генерирует RSA-ключ + самоподписанный сертификат (cryptography),
+    собирает META-INF/MANIFEST.MF, META-INF/CERT.SF и PKCS#7 CERT.RSA.
+    """
+    import base64
+    import hashlib
+
+    from cryptography import x509
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import rsa
+    from cryptography.x509.oid import NameOID
+
+    # 1. Ключ и сертификат
+    key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "Lilith Novel")])
+    cert = (
+        x509.CertificateBuilder()
+        .subject_name(name)
+        .issuer_name(name)
+        .public_key(key.public_key())
+        .serial_number(x509.random_serial_number())
+        .not_valid_before(datetime_now_utc())
+        .not_valid_after(datetime_now_utc_plus_years(27))
+        .add_extension(x509.BasicConstraints(ca=False, path_length=None), critical=True)
+        .sign(key, hashes.SHA256())
+    )
+
+    # 2. Читаем файлы APK (кроме META-INF)
+    entries: list[tuple[str, bytes]] = []
+    with zipfile.ZipFile(apk) as z:
+        for info in z.infolist():
+            if info.filename.startswith("META-INF/"):
+                continue
+            if info.filename.endswith("/"):
+                continue
+            entries.append((info.filename, z.read(info.filename)))
+    entries.sort(key=lambda e: e[0])
+
+    def b64sha1(data: bytes) -> str:
+        return base64.b64encode(hashlib.sha256(data).digest()).decode()
+
+    # 3. MANIFEST.MF
+    mf_lines = ["Manifest-Version: 1.0", "Created-By: 1.0 (Lilith)"]
+    sections: dict[str, str] = {}
+    for path, data in entries:
+        section = f"Name: {path}\r\nSHA1-Digest: {b64sha1(data)}\r\n\r\n"
+        sections[path] = section
+        mf_lines.append("")
+        mf_lines.append(f"Name: {path}")
+        mf_lines.append(f"SHA-256-Digest: {b64sha1(data)}")
+    manifest_mf = "\r\n".join(mf_lines) + "\r\n"
+    # MANIFEST.MF заканчивается переводом строки; тело для digest — без финального \r\n? 
+    # jarsigner: digest считается по байтам манифеста целиком.
+    manifest_body = manifest_mf
+
+    # 4. CERT.SF
+    sf_lines = [
+        "Signature-Version: 1.0",
+        "Created-By: 1.0 (Lilith)",
+        f"SHA-256-Digest-Manifest: {b64sha1(manifest_body.encode('utf-8'))}",
+    ]
+    for path in dict.fromkeys(p for p, _ in entries):
+        sf_lines.append("")
+        sf_lines.append(f"Name: {path}")
+        sf_lines.append(f"SHA-256-Digest: {b64sha1(sections[path].encode('utf-8'))}")
+    cert_sf = "\r\n".join(sf_lines) + "\r\n"
+
+    # 5. CERT.RSA — PKCS#7 SignedData над CERT.SF
+    from cryptography.hazmat.primitives.serialization import Encoding, pkcs7
+
+    rsa_der = (
+        pkcs7.PKCS7SignatureBuilder()
+        .set_data(cert_sf.encode("utf-8"))
+        .add_signer(cert, key, hashes.SHA256())
+        .sign(Encoding.DER, [pkcs7.PKCS7Options.Binary])
+    )
+
+    # 6. Пересобираем APK с META-INF
+    tmp = apk.with_suffix(".unsigned.apk")
+    apk.rename(tmp)
+    with zipfile.ZipFile(apk, "w", zipfile.ZIP_STORED) as z:
+        for path, data in entries:
+            z.writestr(path, data)
+        z.writestr("META-INF/MANIFEST.MF", manifest_mf)
+        z.writestr("META-INF/CERT.SF", cert_sf)
+        z.writestr("META-INF/CERT.RSA", rsa_der)
+    tmp.unlink()
+
+
+def datetime_now_utc():
+    from datetime import UTC, datetime
+
+    return datetime.now(UTC)
+
+
+def datetime_now_utc_plus_years(years: int):
+    from datetime import UTC, datetime, timedelta
+
+    return datetime.now(UTC) + timedelta(days=365 * years)
+
+
+def main() -> None:
+    if JAVA_HOME is None or not SMALI_JAR.exists():
+        raise SystemExit("Нужны jdk4py (pip install jdk4py) и smali.jar")
+    java = JAVA_HOME / "bin" / "java"
+
+    shutil.rmtree(WORK, ignore_errors=True)
+    WORK.mkdir(parents=True, exist_ok=True)
+
+    # 1. Web-ассеты (JPEG)
+    build_web_assets(WORK)
+
+    # 2. dex
+    smali_file = WORK / "MainActivity.smali"
+    smali_file.write_text(MAIN_SMALI, encoding="utf-8")
+    run([java, "-jar", SMALI_JAR, smali_file, "-o", WORK / "classes.dex"])
+    print("classes.dex:", (WORK / "classes.dex").stat().st_size, "байт")
+
+    # 3. Манифест
+    manifest = build_manifest()
+    (WORK / "AndroidManifest.xml").write_bytes(manifest)
+    print("AndroidManifest.xml:", len(manifest), "байт")
+    # самопроверка: парсим наш же манифест
+    try:
+        from pyaxmlparser import AXMLPrinter  # type: ignore
+
+        xml = AXMLPrinter(manifest).get_xml()
+        assert "com.lilith.novel" in xml and "MainActivity" in xml
+        print("Манифест прочитан парсером OK")
+    except Exception as exc:  # noqa: BLE001
+        print("⚠️ pyaxmlparser не смог прочитать манифест:", exc)
+
+    # 4. zip-сборка APK
+    if OUT.exists():
+        OUT.unlink()
+    with zipfile.ZipFile(OUT, "w", zipfile.ZIP_STORED) as z:
+        z.write(WORK / "AndroidManifest.xml", "AndroidManifest.xml")
+        z.write(WORK / "classes.dex", "classes.dex")
+        for f in sorted((WORK / "novel").rglob("*")):
+            if f.is_file():
+                z.write(f, "assets/novel/" + f.relative_to(WORK / "novel").as_posix())
+
+    # 5. Подпись (схема v1) на Python
+    sign_v1(OUT)
+
+    size_mb = OUT.stat().st_size / 1024 / 1024
+    print(f"\n✅ APK собран и подписан: {OUT} ({size_mb:.1f} МБ)")
+
+
+if __name__ == "__main__":
+    main()

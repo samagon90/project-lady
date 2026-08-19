@@ -26,3 +26,6 @@ build/
 
 # Автономная новелла: генерируется скриптом scripts/build_novel_offline.py
 novel_app/web/
+
+# Временные файлы сборки APK
+novel_app/build_tmp/
