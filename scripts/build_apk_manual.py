@@ -198,6 +198,8 @@ _RES_IDS = {
     "name": 0x01010003,
     "exported": 0x01010010,
     "allowBackup": 0x01010280,
+    "versionCode": 0x0101021b,
+    "versionName": 0x0101021c,
 }
 
 # Типы значений
@@ -210,14 +212,16 @@ def build_manifest() -> bytes:
     w = AXMLWriter()
     root = {
         "tag": "manifest",
-        "ns": "http://schemas.android.com/apk/res/android",
         "attrs": [
             (None, "package", "com.lilith.novel", TYPE_STRING, 0),
+            ("http://schemas.android.com/apk/res/android", "versionCode",
+             "1", TYPE_INT_BOOLEAN, 1),
+            ("http://schemas.android.com/apk/res/android", "versionName",
+             "1.0.0", TYPE_STRING, 0),
         ],
         "children": [
             {
                 "tag": "application",
-                "ns": "http://schemas.android.com/apk/res/android",
                 "attrs": [
                     ("http://schemas.android.com/apk/res/android", "label",
                      "Лилит: Новелла", TYPE_STRING, 0),
@@ -227,7 +231,6 @@ def build_manifest() -> bytes:
                 "children": [
                     {
                         "tag": "activity",
-                        "ns": "http://schemas.android.com/apk/res/android",
                         "attrs": [
                             ("http://schemas.android.com/apk/res/android", "name",
                              ".MainActivity", TYPE_STRING, 0),
@@ -379,21 +382,13 @@ def build_web_assets(work: Path) -> None:
     print(f"web-ассеты: {len(list((web/'images').glob('*')))} фото, {total//1024//1024} МБ")
 
 
-def sign_v1(apk: Path) -> None:
-    """JAR-подпись APK (схема v1) — как делает jarsigner, но на Python.
-
-    Генерирует RSA-ключ + самоподписанный сертификат (cryptography),
-    собирает META-INF/MANIFEST.MF, META-INF/CERT.SF и PKCS#7 CERT.RSA.
-    """
-    import base64
-    import hashlib
-
+def _make_key_cert():
+    """Создаёт RSA-ключ и самоподписанный сертификат."""
     from cryptography import x509
     from cryptography.hazmat.primitives import hashes, serialization
     from cryptography.hazmat.primitives.asymmetric import rsa
     from cryptography.x509.oid import NameOID
 
-    # 1. Ключ и сертификат
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "Lilith Novel")])
     cert = (
@@ -407,8 +402,37 @@ def sign_v1(apk: Path) -> None:
         .add_extension(x509.BasicConstraints(ca=False, path_length=None), critical=True)
         .sign(key, hashes.SHA256())
     )
+    return key, cert
 
-    # 2. Читаем файлы APK (кроме META-INF)
+
+def sign_v1(apk: Path) -> tuple:
+    """JAR-подпись APK (схема v1) — как делает jarsigner, но на Python.
+
+    Возвращает (key, cert) для последующей подписи v2.
+    """
+    import base64
+    import hashlib
+
+    from cryptography import x509
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import rsa
+    from cryptography.x509.oid import NameOID
+
+    key, cert = _make_key_cert()
+    """JAR-подпись APK (схема v1) — как делает jarsigner, но на Python.
+
+    Генерирует RSA-ключ + самоподписанный сертификат (cryptography),
+    собирает META-INF/MANIFEST.MF, META-INF/CERT.SF и PKCS#7 CERT.RSA.
+    """
+    import base64
+    import hashlib
+
+    from cryptography import x509
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import rsa
+    from cryptography.x509.oid import NameOID
+
+    # 1. Читаем файлы APK (кроме META-INF)
     entries: list[tuple[str, bytes]] = []
     with zipfile.ZipFile(apk) as z:
         for info in z.infolist():
@@ -468,6 +492,92 @@ def sign_v1(apk: Path) -> None:
         z.writestr("META-INF/CERT.SF", cert_sf)
         z.writestr("META-INF/CERT.RSA", rsa_der)
     tmp.unlink()
+    return key, cert
+
+
+
+def sign_v2(apk: Path, key, cert) -> None:
+    """APK Signature Scheme v2 (обязательна для Android 7.0+ / Android 11+).
+
+    Вставляет APK Signing Block перед central directory и пересчитывает
+    смещение каталога в EOCD. Подпись — RSA-PKCS1v1.5-SHA256 (algo 0x0103).
+    Длина блока фиксирована (RSA-2048 -> подпись 256 байт), поэтому:
+    патчим EOCD offset -> считаем диджесты -> подписываем -> вставляем.
+    """
+    import hashlib
+
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import padding
+
+    ALG = 0x0103  # RSASSA-PKCS1-v1_5 with SHA-256
+    ID_SIG = 0x7109871A
+    MAGIC = b"APK Sig Block 42"
+
+    data = apk.read_bytes()
+    eocd_pos = data.rfind(b"PK\x05\x06")
+    if eocd_pos < 0:
+        raise SystemExit("EOCD не найден")
+    cd_offset = struct.unpack_from("<I", data, eocd_pos + 16)[0]
+
+    def lp(b: bytes) -> bytes:
+        return struct.pack("<I", len(b)) + b
+
+    cert_der = cert.public_bytes(serialization.Encoding.DER)
+    pubkey_der = key.public_key().public_bytes(
+        serialization.Encoding.DER,
+        serialization.PublicFormat.SubjectPublicKeyInfo,
+    )
+
+    # --- Длина value/блока (не зависит от содержимого подписи) ---
+    def block_len_for(sig_len: int) -> int:
+        # signed data (без реальной подписи): digest 32 б, cert, sdks, attrs
+        digest_len = 32
+        digests_entry = struct.pack("<I", ALG) + lp(b"\x00" * digest_len)
+        signed_len = len(lp(digests_entry)) + len(lp(cert_der)) + 8 + len(lp(b""))
+        sig_entry_len = 4 + 4 + sig_len
+        # signer = lp(signed) + lp(lp(sig_entry)) + lp(pubkey)
+        signer_len = 4 + signed_len + 4 + 4 + sig_entry_len + 4 + len(pubkey_der)
+        value_len = 4 + signer_len
+        pairs_len = 8 + 4 + value_len
+        # Полный размер блока: [size1(8)][pairs][size2(8)][magic(16)]
+        return pairs_len + 8 + 8 + len(MAGIC)
+
+    block_len = block_len_for(256)  # RSA-2048 -> 256 байт подписи
+
+    # --- Патчим EOCD offset (на длину будущего блока) ---
+    patched = bytearray(data)
+    struct.pack_into("<I", patched, eocd_pos + 16, cd_offset + block_len)
+
+    # --- Диджесты контента ПО ФИНАЛЬНОМУ содержимому (offset уже новый) ---
+    seg1 = bytes(patched[:cd_offset])
+    seg2 = bytes(patched[cd_offset:])
+    d1 = hashlib.sha256(b"\xa5" + seg1).digest()
+    d2 = hashlib.sha256(b"\xa5" + seg2).digest()
+    digest = hashlib.sha256(d1 + d2).digest()
+
+    # --- Signed data и подпись ---
+    digests_entry = struct.pack("<I", ALG) + lp(digest)
+    signed = lp(digests_entry) + lp(cert_der) + struct.pack("<II", 0xFFFFFFFF, 0xFFFFFFFF) + lp(b"")
+    sig = key.sign(signed, padding.PKCS1v15(), hashes.SHA256())
+    assert len(sig) == 256
+    sig_entry = struct.pack("<I", ALG) + lp(sig)
+    # signatures — это ПОСЛЕДОВАТЕЛЬНОСТЬ length-prefixed подписей
+    signer = lp(signed) + lp(lp(sig_entry)) + lp(pubkey_der)
+    value = lp(signer)
+
+    # --- APK Signing Block ---
+    pairs = struct.pack("<Q", 4 + len(value)) + struct.pack("<I", ID_SIG) + value
+    size1 = len(pairs) + 8 + len(MAGIC)
+    block = struct.pack("<Q", size1) + pairs + struct.pack("<Q", size1) + MAGIC
+    assert len(block) == block_len, (len(block), block_len)
+
+    # --- Финальная сборка ---
+    final = bytearray()
+    final += patched[:cd_offset]
+    final += block
+    final += patched[cd_offset:]
+    apk.write_bytes(bytes(final))
+    print(f"v2: APK Signing Block ({len(block)} б) + подпись RSA-SHA256, диджесты по финальному файлу")
 
 
 def datetime_now_utc():
@@ -523,8 +633,9 @@ def main() -> None:
             if f.is_file():
                 z.write(f, "assets/novel/" + f.relative_to(WORK / "novel").as_posix())
 
-    # 5. Подпись (схема v1) на Python
-    sign_v1(OUT)
+    # 5. Подпись: схема v1 (JAR) + схема v2 (обязательна для Android 7+)
+    _key, _cert = sign_v1(OUT)
+    sign_v2(OUT, _key, _cert)
 
     size_mb = OUT.stat().st_size / 1024 / 1024
     print(f"\n✅ APK собран и подписан: {OUT} ({size_mb:.1f} МБ)")
