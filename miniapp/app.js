@@ -615,12 +615,15 @@
         const bossImages = staticImages.filter(function (n) { return n.indexOf("lilith_boss_") === 0; });
         // Серия «Развратная» (самая откровенная) — своя секция
         const naughtyImages = staticImages.filter(function (n) { return n.indexOf("lilith_naughty_") === 0; });
+        // Серия «Бизнес-леди в белье» — своя секция
+        const bizlingImages = staticImages.filter(function (n) { return n.indexOf("lilith_bizling_") === 0; });
         // Серия «Горячее аниме» (аниме-стиль, откровенно) — своя секция
         const animeHotImages = staticImages.filter(function (n) { return n.indexOf("lilith_animehot_") === 0; });
         const artImages = staticImages.filter(function (n) {
           return n.indexOf("lilith_real_") !== 0 && n.indexOf("lilith_alchemy_") !== 0
             && n.indexOf("lilith_teacher_") !== 0 && n.indexOf("lilith_boss_") !== 0
-            && n.indexOf("lilith_naughty_") !== 0 && n.indexOf("lilith_animehot_") !== 0;
+            && n.indexOf("lilith_naughty_") !== 0 && n.indexOf("lilith_animehot_") !== 0
+            && n.indexOf("lilith_bizling_") !== 0;
         });
 
         function appendStaticSection(title, names) {
@@ -634,7 +637,7 @@
               : (title === "🔥 Развратная" || title === "🔥 Горячее аниме" ? "🔥"
               : (title === "🧪 Алхимик 2042" ? "🧪"
               : (title === "👩🏫 Строгая учительница" ? "👩🏫"
-              : (title === "👠 Доминанта" ? "👠" : "✨"))));
+              : (title === "👠 Доминанта" || title === "👔 Бизнес-леди в белье" ? "👠" : "✨"))));
             const card = galleryCard("/api/gallery/static/image/" + encodeURIComponent(name), capIcon, "Lilith");
             const wear = document.createElement("button");
             wear.className = "wear-btn";
@@ -660,6 +663,7 @@
         appendStaticSection("📸 Реальные фото", realImages);
         appendStaticSection("🔥 Развратная", naughtyImages);
         appendStaticSection("🔥 Горячее аниме", animeHotImages);
+        appendStaticSection("👔 Бизнес-леди в белье", bizlingImages);
         appendStaticSection("🧪 Алхимик 2042", alchemyImages);
         appendStaticSection("👩🏫 Строгая учительница", teacherImages);
         appendStaticSection("👠 Доминанта", bossImages);

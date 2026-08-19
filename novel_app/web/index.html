@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Лилит — Визуальная новелла</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- Возрастной гейт -->
+<div id="age-gate">
+  <div class="gate-card">
+    <div class="gate-emoji">🖤</div>
+    <h1>Лилит</h1>
+    <p class="gate-sub">Визуальная новелла 18+</p>
+    <p class="gate-text">
+      Это приложение содержит сцены для взрослых: откровенные диалоги,
+      эротические ситуации и изображения. Персонаж — вымышленная взрослая
+      женщина (24 года).
+    </p>
+    <p class="gate-text">Продолжая, ты подтверждаешь, что тебе есть 18 лет.</p>
+    <button id="gate-enter" class="primary">Мне есть 18 лет — войти</button>
+    <button id="gate-leave" class="primary ghost">Мне нет 18 — выйти</button>
+  </div>
+</div>
+
+<div id="novel" style="display:none">
+  <div id="novel-header">
+    <span id="novel-title">📚 Лилит: Новелла</span>
+  </div>
+
+  <div id="novel-box">
+    <div id="novel-image-wrap"><img id="novel-image" alt="Лилит"></div>
+    <div id="novel-text"></div>
+    <div id="novel-choices"></div>
+    <div id="novel-actions" style="display:none">
+      <button id="novel-restart" class="primary">🔄 Сыграть ещё раз</button>
+      <button id="novel-menu-btn" class="primary ghost">📚 Все сценарии</button>
+    </div>
+  </div>
+</div>
+
+<script src="scenarios.js"></script>
+<script src="gallery.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

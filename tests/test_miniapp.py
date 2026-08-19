@@ -282,11 +282,17 @@ async def test_miniapp_gallery_static(ctx) -> None:
     resp = await server._api_gallery_static(_Req())
     assert resp.status == 200, resp.body
     data = _json.loads(resp.body)
-    assert len(data["images"]) >= 60, "в assets/gallery должно быть 60+ образов"
+    assert len(data["images"]) >= 160, "в assets/gallery должно быть 160+ образов"
     assert any(name.startswith("lilith_v2_") for name in data["images"])
     # Реалистичные фото (как реальная девушка)
     real = [n for n in data["images"] if n.startswith("lilith_real_")]
     assert len(real) >= 26, f"нужно 26+ реалистичных фото, найдено {len(real)}"
+    nurse = [n for n in data["images"] if n.startswith("lilith_nurse_")]
+    assert len(nurse) >= 5, f"нужно 5 фото медсестры, найдено {len(nurse)}"
+    business = [n for n in data["images"] if n.startswith("lilith_business_")]
+    assert len(business) >= 5, f"нужно 5 фото бизнес-леди, найдено {len(business)}"
+    bizling = [n for n in data["images"] if n.startswith("lilith_bizling_")]
+    assert len(bizling) >= 10, f"нужно 10 фото бизнес-леди в белье, найдено {len(bizling)}"
     # Возбуждённые фото (lilith_real_21+) присутствуют
     aroused = [n for n in real if "aroused" in n]
     assert len(aroused) >= 5

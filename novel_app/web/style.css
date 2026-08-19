@@ -1,0 +1,152 @@
+:root {
+  --bg: #12070f;
+  --card: #1e0f1a;
+  --accent: #c0392b;
+  --text: #f0e6ee;
+  --muted: #9a8494;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+#novel {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 10px 12px 16px;
+}
+
+#novel-header {
+  padding: 8px 4px 10px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #e8a0c8;
+}
+
+#novel-box {
+  background: var(--card);
+  border: 1px solid #33192b;
+  border-radius: 16px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+#novel-image-wrap { width: 100%; background: #0d060c; }
+
+#novel-image {
+  width: 100%;
+  max-height: 52vh;
+  object-fit: cover;
+  display: block;
+}
+
+#novel-text { padding: 12px 14px; font-size: 14px; line-height: 1.55; }
+
+.novel-narrator { color: var(--text); margin-bottom: 8px; }
+
+.novel-lilith {
+  color: #e8a0c8;
+  background: #2a1222;
+  border-left: 3px solid var(--accent);
+  border-radius: 10px;
+  padding: 8px 10px;
+  margin-bottom: 4px;
+}
+
+#novel-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 6px 14px 14px;
+}
+
+.novel-choice {
+  width: 100%;
+  text-align: left;
+  padding: 11px 12px;
+  border: 1px solid #55304a;
+  border-radius: 12px;
+  background: #160a13;
+  color: var(--text);
+  font-size: 14px;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.novel-choice:active { background: #33192b; }
+
+.novel-choice.scenario-title { display: flex; flex-direction: column; gap: 3px; }
+.scenario-title-text { font-weight: 700; font-size: 15px; }
+.scenario-sub { font-size: 12px; color: var(--muted); }
+
+#novel-actions { padding: 4px 14px 14px; }
+
+button.primary {
+  width: 100%;
+  padding: 12px;
+  border: none;
+  border-radius: 12px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: 6px;
+  font-family: inherit;
+}
+
+button.ghost {
+  background: #1e0f1a;
+  border: 1px solid #55304a;
+  color: var(--text);
+}
+
+/* ===== Возрастной гейт ===== */
+#age-gate {
+  position: fixed;
+  inset: 0;
+  background: var(--bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 100;
+}
+
+.gate-card {
+  background: var(--card);
+  border: 1px solid #55304a;
+  border-radius: 18px;
+  padding: 24px 20px;
+  max-width: 380px;
+  text-align: center;
+}
+
+.gate-emoji { font-size: 44px; margin-bottom: 6px; }
+.gate-card h1 { font-size: 26px; color: #e8a0c8; }
+.gate-sub { color: var(--muted); margin: 4px 0 14px; }
+.gate-text { font-size: 13px; line-height: 1.5; color: var(--text); margin-bottom: 10px; }
+
+/* ===== Галерея (все фото, без игры) ===== */
+#gallery-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+.gallery-item { position: relative; border-radius: 10px; overflow: hidden; border: 1px solid #33192b; background: #160a13; }
+.gallery-item img { width: 100%; height: 140px; object-fit: cover; display: block; }
+.gallery-item .gallery-label { position: absolute; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,0.6); font-size: 10px; padding: 3px 6px; color: #e8a0c8; }
+
+/* Полноэкранный просмотр */
+#viewer { display: none; position: fixed; inset: 0; background: #0d060c; z-index: 50; flex-direction: column; }
+#viewer img { flex: 1; object-fit: contain; width: 100%; }
+#viewer-controls { display: flex; gap: 8px; padding: 10px; justify-content: center; }
+#viewer-controls button { padding: 10px 18px; border: 1px solid #55304a; border-radius: 10px; background: #1e0f1a; color: var(--text); font-size: 15px; cursor: pointer; font-family: inherit; }
+#viewer-name { text-align: center; color: var(--muted); font-size: 12px; padding: 6px; }

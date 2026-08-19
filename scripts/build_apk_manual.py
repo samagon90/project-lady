@@ -12,9 +12,7 @@
 
 from __future__ import annotations
 
-import io
 import json
-import os
 import shutil
 import struct
 import subprocess
@@ -138,7 +136,7 @@ class AXMLWriter:
         self.sp.add("android")
         # ресурс-мапа
         for node_holder in ([root] + list(_flatten(root))):
-            for ns, name, _v, _t, _d in node_holder.get("attrs", []):
+            for _ns, name, _v, _t, _d in node_holder.get("attrs", []):
                 if name in _RES_IDS:
                     rid = _RES_IDS[name]
                     if rid not in self.res_ids:
@@ -165,7 +163,7 @@ class AXMLWriter:
             for ns, name, value, vtype, data in attrs:
                 a_ns = self.sp.index[ns] if ns else 0xFFFFFFFF
                 a_name = self.sp.index[name]
-                rid = _RES_IDS.get(name, 0)
+                _rid = _RES_IDS.get(name, 0)
                 if value is not None:
                     raw = self.sp.index.get(str(value), 0xFFFFFFFF)
                 else:
@@ -407,7 +405,7 @@ def build_web_assets(work: Path) -> None:
 def _make_key_cert():
     """Создаёт RSA-ключ и самоподписанный сертификат."""
     from cryptography import x509
-    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives import hashes
     from cryptography.hazmat.primitives.asymmetric import rsa
     from cryptography.x509.oid import NameOID
 
@@ -435,10 +433,6 @@ def sign_v1(apk: Path) -> tuple:
     import base64
     import hashlib
 
-    from cryptography import x509
-    from cryptography.hazmat.primitives import hashes, serialization
-    from cryptography.hazmat.primitives.asymmetric import rsa
-    from cryptography.x509.oid import NameOID
 
     key, cert = _make_key_cert()
     """JAR-подпись APK (схема v1) — как делает jarsigner, но на Python.
@@ -446,13 +440,7 @@ def sign_v1(apk: Path) -> tuple:
     Генерирует RSA-ключ + самоподписанный сертификат (cryptography),
     собирает META-INF/MANIFEST.MF, META-INF/CERT.SF и PKCS#7 CERT.RSA.
     """
-    import base64
-    import hashlib
 
-    from cryptography import x509
-    from cryptography.hazmat.primitives import hashes, serialization
-    from cryptography.hazmat.primitives.asymmetric import rsa
-    from cryptography.x509.oid import NameOID
 
     # 1. Читаем файлы APK (кроме META-INF)
     entries: list[tuple[str, bytes]] = []

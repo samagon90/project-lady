@@ -24,8 +24,11 @@ htmlcov/
 dist/
 build/
 
-# Автономная новелла: генерируется скриптом scripts/build_novel_offline.py
-novel_app/web/
+# Автономная новелла: только ГЕНЕРИРУЕМЫЕ файлы вне git
+# (рукописные index.html/style.css/app.js хранятся в git!)
+novel_app/web/images/
+novel_app/web/scenarios.js
+novel_app/web/gallery.js
 
 # Временные файлы сборки APK
 novel_app/build_tmp/
