@@ -326,10 +326,11 @@ async def test_miniapp_avatar_toon_style(ctx) -> None:
 
 
 def test_toon_emotion_files_exist() -> None:
-    """Ключевые toon-эмоции реально лежат в папке."""
+    """Ключевые toon-эмоции реально лежат в папке (диснеевский стиль)."""
     from pathlib import Path
 
     root = Path(__file__).resolve().parents[1]
     folder = root / "assets/emotions/toon"
-    for emo in ("neutral", "passion", "flirt", "playful", "happy", "shy"):
+    for emo in ("neutral", "passion", "flirt", "playful", "happy", "shy",
+                "tender", "excited", "sad"):
         assert (folder / f"lilith_{emo}_toon.png").exists(), f"нет {emo} toon"
