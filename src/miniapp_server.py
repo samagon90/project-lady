@@ -103,6 +103,7 @@ class MiniAppServer:
         self.app.router.add_get("/api/gallery/static", self._api_gallery_static)
         self.app.router.add_get("/api/gallery/static/image/{name}", self._api_gallery_static_image)
         self.app.router.add_get("/api/novel", self._api_novel)
+        self.app.router.add_get("/api/novel/{scenario_id}", self._api_novel_scenario)
 
     # ------------------------------------------------------------- static
 
@@ -628,26 +629,47 @@ class MiniAppServer:
         return web.FileResponse(path)
 
     async def _api_novel(self, request: web.Request) -> web.Response:
-        """Сценарий визуальной новеллы «Рандеву с похотливой незнакомкой» (18+)."""
+        """Список сценариев визуальной новеллы (18+) — сборник историй."""
         uid = self._user_id(request)
         if uid is None:
             return web.json_response({"error": "unauthorized"}, status=401)
-        from src.novel import (
-            NOVEL_ID,
-            NOVEL_SCENARIO,
-            NOVEL_SUBTITLE,
-            NOVEL_TITLE,
-            validate_scenario,
-        )
+        from src.novel import SCENARIOS, validate_all_scenarios
 
-        errors = validate_scenario(NOVEL_SCENARIO)
+        errors = validate_all_scenarios()
         return web.json_response(
             {
-                "id": NOVEL_ID,
-                "title": NOVEL_TITLE,
-                "subtitle": NOVEL_SUBTITLE,
-                "start": "start",
-                "nodes": NOVEL_SCENARIO,
+                "scenarios": [
+                    {
+                        "id": sid,
+                        "title": sc["title"],
+                        "subtitle": sc["subtitle"],
+                        "nodes_count": len(sc["nodes"]),
+                        "errors": errors.get(sid) or [],
+                    }
+                    for sid, sc in SCENARIOS.items()
+                ]
+            }
+        )
+
+    async def _api_novel_scenario(self, request: web.Request) -> web.Response:
+        """Отдаёт конкретный сценарий новеллы по id."""
+        uid = self._user_id(request)
+        if uid is None:
+            return web.json_response({"error": "unauthorized"}, status=401)
+        scenario_id = request.match_info.get("scenario_id", "")
+        from src.novel import SCENARIOS, validate_scenario
+
+        scenario = SCENARIOS.get(scenario_id)
+        if scenario is None:
+            return web.json_response({"error": "not_found"}, status=404)
+        errors = validate_scenario(scenario["nodes"])
+        return web.json_response(
+            {
+                "id": scenario_id,
+                "title": scenario["title"],
+                "subtitle": scenario["subtitle"],
+                "start": scenario["start"],
+                "nodes": scenario["nodes"],
                 "errors": errors,
             }
         )

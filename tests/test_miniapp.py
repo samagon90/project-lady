@@ -380,19 +380,40 @@ async def test_miniapp_novel_endpoint(ctx) -> None:
     resp = await server._api_novel(_Req())
     assert resp.status == 200, resp.body
     data = _json.loads(resp.body)
-    assert data["id"] == "rendezvous"
-    assert "Рандеву" in data["title"]
-    assert data["start"] == "start"
-    assert len(data["nodes"]) >= 10
-    assert not data["errors"]
+    assert "scenarios" in data
+    ids = [s["id"] for s in data["scenarios"]]
+    assert "rendezvous" in ids and "teacher" in ids and "boss" in ids
+    assert "alchemist" in ids and "anime" in ids and "naughty" in ids
+    for s in data["scenarios"]:
+        assert not s["errors"], f"ошибки в {s['id']}: {s['errors']}"
 
-    # Фото сцен реально лежат в assets/gallery
+    # Конкретный сценарий
+    class _ReqScenario(_Req):
+        def __init__(self):
+            self.headers = {"x-init-data": init}
+            self.match_info = {"scenario_id": "teacher"}
+
+        async def json(self):
+            return {}
+
+    resp2 = await server._api_novel_scenario(_ReqScenario())
+    data2 = _json.loads(resp2.body)
+    assert data2["id"] == "teacher"
+    assert "учительница" in data2["title"].lower()
+    assert data2["start"] == "start"
+    assert len(data2["nodes"]) >= 6
+    assert not data2["errors"]
+
+    # Фото сцен всех сценариев реально лежат в assets/gallery
     from pathlib import Path
 
     root = Path(__file__).resolve().parents[1]  # noqa: ASYNC240
-    for node in data["nodes"].values():
-        img = root / "assets" / "gallery" / node["image"]
-        assert img.exists(), f"нет фото сцены: {node['image']}"  # noqa: ASYNC240
+    from src.novel import SCENARIOS
+
+    for sid, sc in SCENARIOS.items():
+        for node in sc["nodes"].values():
+            img = root / "assets" / "gallery" / node["image"]
+            assert img.exists(), f"{sid}: нет фото сцены: {node['image']}"  # noqa: ASYNC240
 
 
 def test_grimoire_easter_egg_in_html() -> None:

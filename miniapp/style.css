@@ -553,3 +553,10 @@ button.ghost {
 .grimoire-body p { margin-bottom: 8px; }
 .grimoire-body b { color: #e8a0c8; }
 .grimoire-footer { color: var(--muted); font-style: italic; margin-top: 10px; }
+
+/* ===== Меню сценариев новеллы (v2.8) ===== */
+.novel-choice.scenario-title { display: flex; flex-direction: column; gap: 3px; }
+
+.scenario-title-text { font-weight: 700; font-size: 15px; }
+
+.scenario-sub { font-size: 12px; color: var(--muted); }

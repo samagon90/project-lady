@@ -276,11 +276,55 @@
 
   let novelData = null;
   let novelNodeId = null;
+  let novelList = null;
+
+  // Меню выбора сценария
+  function renderNovelMenu() {
+    const img = el("novel-image");
+    if (img) img.style.display = "none";
+    el("novel-actions").style.display = "none";
+    const textEl = el("novel-text");
+    if (!novelList || !novelList.scenarios || !novelList.scenarios.length) {
+      textEl.innerHTML = "<div class='novel-narrator'>Не удалось загрузить сценарии.</div>";
+      return;
+    }
+    let html = "<div class='novel-narrator'>📚 Выбери историю (18+):</div>";
+    textEl.innerHTML = html;
+    const choicesEl = el("novel-choices");
+    choicesEl.innerHTML = "";
+    choicesEl.style.display = "flex";
+    novelList.scenarios.forEach(function (sc) {
+      const btn = document.createElement("button");
+      btn.className = "novel-choice scenario-title";
+      const title = document.createElement("div");
+      title.className = "scenario-title-text";
+      title.textContent = sc.title;
+      const sub = document.createElement("div");
+      sub.className = "scenario-sub";
+      sub.textContent = sc.subtitle + " · " + sc.nodes_count + " сцен";
+      btn.appendChild(title);
+      btn.appendChild(sub);
+      btn.addEventListener("click", function () {
+        haptic();
+        startNovel(sc.id);
+      });
+      choicesEl.appendChild(btn);
+    });
+  }
 
   function loadNovel() {
-    const box = el("novel-box");
-    if (!box) return;
     api("/api/novel")
+      .then(function (data) {
+        novelList = data;
+        renderNovelMenu();
+      })
+      .catch(function (e) {
+        el("novel-text").textContent = "Не удалось загрузить новеллу: " + e.message;
+      });
+  }
+
+  function startNovel(scenarioId) {
+    api("/api/novel/" + encodeURIComponent(scenarioId))
       .then(function (data) {
         novelData = data;
         if (data.errors && data.errors.length) {
@@ -291,7 +335,7 @@
         renderNovelNode();
       })
       .catch(function (e) {
-        el("novel-text").textContent = "Не удалось загрузить новеллу: " + e.message;
+        el("novel-text").textContent = "Не удалось загрузить сценарий: " + e.message;
       });
   }
 
@@ -325,7 +369,10 @@
     });
 
     const isEnding = !!node.ending;
-    el("novel-actions").style.display = isEnding ? "block" : "none";
+    el("novel-actions").style.display = "block";
+    el("novel-restart").style.display = isEnding ? "block" : "none";
+    el("novel-menu-btn").style.display = "block";
+    el("novel-back").style.display = "block";
     choicesEl.style.display = isEnding ? "none" : "flex";
   }
 
@@ -333,6 +380,11 @@
     haptic();
     novelNodeId = novelData.start || "start";
     renderNovelNode();
+  });
+
+  el("novel-menu-btn").addEventListener("click", function () {
+    haptic();
+    renderNovelMenu();
   });
 
   el("novel-back").addEventListener("click", function () {
