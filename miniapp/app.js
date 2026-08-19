@@ -561,9 +561,12 @@
         const teacherImages = staticImages.filter(function (n) { return n.indexOf("lilith_teacher_") === 0; });
         // Серия «Доминанта» (юбка-карандаш, каблуки, ракурс снизу) — своя секция
         const bossImages = staticImages.filter(function (n) { return n.indexOf("lilith_boss_") === 0; });
+        // Серия «Развратная» (самая откровенная) — своя секция
+        const naughtyImages = staticImages.filter(function (n) { return n.indexOf("lilith_naughty_") === 0; });
         const artImages = staticImages.filter(function (n) {
           return n.indexOf("lilith_real_") !== 0 && n.indexOf("lilith_alchemy_") !== 0
-            && n.indexOf("lilith_teacher_") !== 0 && n.indexOf("lilith_boss_") !== 0;
+            && n.indexOf("lilith_teacher_") !== 0 && n.indexOf("lilith_boss_") !== 0
+            && n.indexOf("lilith_naughty_") !== 0;
         });
 
         function appendStaticSection(title, names) {
@@ -574,9 +577,10 @@
           el("gallery").appendChild(h);
           names.forEach(function (name) {
             const capIcon = title === "📸 Реальные фото" ? "📸"
+              : (title === "🔥 Развратная" ? "🔥"
               : (title === "🧪 Алхимик 2042" ? "🧪"
               : (title === "👩🏫 Строгая учительница" ? "👩🏫"
-              : (title === "👠 Доминанта" ? "👠" : "✨")));
+              : (title === "👠 Доминанта" ? "👠" : "✨"))));
             const card = galleryCard("/api/gallery/static/image/" + encodeURIComponent(name), capIcon, "Lilith");
             const wear = document.createElement("button");
             wear.className = "wear-btn";
@@ -600,6 +604,7 @@
         }
 
         appendStaticSection("📸 Реальные фото", realImages);
+        appendStaticSection("🔥 Развратная", naughtyImages);
         appendStaticSection("🧪 Алхимик 2042", alchemyImages);
         appendStaticSection("👩🏫 Строгая учительница", teacherImages);
         appendStaticSection("👠 Доминанта", bossImages);

@@ -521,3 +521,42 @@ async def test_miniapp_gallery_boss(ctx) -> None:
 
     resp2 = await server._api_gallery_static_image(_Req("lilith_boss_01_low_angle_pointer.png"))
     assert resp2.status == 200
+
+
+async def test_miniapp_gallery_naughty(ctx) -> None:
+    """Серия «Развратная»: фото в галерее + отдача файла."""
+    import hashlib
+    import hmac
+    import json as _json
+    import urllib.parse
+
+    from src.miniapp_server import MiniAppServer
+
+    token = "123:TESTTOKEN"
+    await onboard(ctx, 7783, nsfw=True)
+    server = MiniAppServer(ctx.db, token)
+
+    user_json = _json.dumps({"id": 7783, "first_name": "T", "is_bot": False})
+    pairs = [("user", user_json), ("auth_date", "1700000000")]
+    data_check = "\n".join(f"{k}={v}" for k, v in sorted(pairs))
+    secret = hmac.new(b"WebAppData", token.encode(), hashlib.sha256).digest()
+    digest = hmac.new(secret, data_check.encode(), hashlib.sha256).hexdigest()
+    init = urllib.parse.urlencode(pairs + [("hash", digest)])
+
+    class _Req:
+        headers = {"x-init-data": init}
+        match_info: dict = {}
+
+        def __init__(self, name: str | None = None):
+            self.match_info = {"name": name} if name else {}
+
+        async def json(self):
+            return {}
+
+    resp = await server._api_gallery_static(_Req())
+    data = _json.loads(resp.body)
+    naughty = [n for n in data["images"] if n.startswith("lilith_naughty_")]
+    assert len(naughty) >= 7, f"нужно 7+ развратных фото, найдено {len(naughty)}"
+
+    resp2 = await server._api_gallery_static_image(_Req("lilith_naughty_02_kneel_arch.png"))
+    assert resp2.status == 200
