@@ -332,5 +332,5 @@ def test_toon_emotion_files_exist() -> None:
     root = Path(__file__).resolve().parents[1]
     folder = root / "assets/emotions/toon"
     for emo in ("neutral", "passion", "flirt", "playful", "happy", "shy",
-                "tender", "excited", "sad"):
+                "tender", "excited", "sad", "surprised"):
         assert (folder / f"lilith_{emo}_toon.png").exists(), f"нет {emo} toon"
