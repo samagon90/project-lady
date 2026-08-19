@@ -530,3 +530,26 @@ button.ghost {
   color: var(--text);
   margin-top: 6px;
 }
+
+/* ===== Гримуар Архивариуса (пасхалка v2.7.1) ===== */
+.grimoire-summary {
+  cursor: pointer;
+  color: #e8a0c8;
+  font-size: 14px;
+  padding: 8px 0;
+  user-select: none;
+}
+
+.grimoire-body {
+  background: #160a13;
+  border: 1px solid #55304a;
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--text);
+}
+
+.grimoire-body p { margin-bottom: 8px; }
+.grimoire-body b { color: #e8a0c8; }
+.grimoire-footer { color: var(--muted); font-style: italic; margin-top: 10px; }

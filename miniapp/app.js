@@ -555,7 +555,11 @@
         el("gallery").innerHTML = "";
         // Реалистичные фото (как реальная девушка) — отдельная секция
         const realImages = staticImages.filter(function (n) { return n.indexOf("lilith_real_") === 0; });
-        const artImages = staticImages.filter(function (n) { return n.indexOf("lilith_real_") !== 0; });
+        // Серия «Алхимик 2042» (ведьма-зельевар) — своя секция
+        const alchemyImages = staticImages.filter(function (n) { return n.indexOf("lilith_alchemy_") === 0; });
+        const artImages = staticImages.filter(function (n) {
+          return n.indexOf("lilith_real_") !== 0 && n.indexOf("lilith_alchemy_") !== 0;
+        });
 
         function appendStaticSection(title, names) {
           if (!names.length) return;
@@ -564,7 +568,8 @@
           h.textContent = title;
           el("gallery").appendChild(h);
           names.forEach(function (name) {
-            const card = galleryCard("/api/gallery/static/image/" + encodeURIComponent(name), title === "📸 Реальные фото" ? "📸" : "✨", "Lilith");
+            const capIcon = title === "📸 Реальные фото" ? "📸" : (title === "🧪 Алхимик 2042" ? "🧪" : "✨");
+            const card = galleryCard("/api/gallery/static/image/" + encodeURIComponent(name), capIcon, "Lilith");
             const wear = document.createElement("button");
             wear.className = "wear-btn";
             wear.textContent = "👗 Надеть";
@@ -587,6 +592,7 @@
         }
 
         appendStaticSection("📸 Реальные фото", realImages);
+        appendStaticSection("🧪 Алхимик 2042", alchemyImages);
         appendStaticSection("✨ Образы Лилит", artImages);
         if (userImages.length) {
           const h = document.createElement("h3");

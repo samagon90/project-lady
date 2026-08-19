@@ -393,3 +393,53 @@ async def test_miniapp_novel_endpoint(ctx) -> None:
     for node in data["nodes"].values():
         img = root / "assets" / "gallery" / node["image"]
         assert img.exists(), f"нет фото сцены: {node['image']}"  # noqa: ASYNC240
+
+
+def test_grimoire_easter_egg_in_html() -> None:
+    """Пасхалка «Гримуар Архивариуса» присутствует в Mini App."""
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1]
+    html = (root / "miniapp" / "index.html").read_text(encoding="utf-8")
+    assert "Гримуар Архивариуса" in html
+    assert "Перегонный лист №447-А" in html
+    assert "Дистиллят истоков" in html
+
+
+async def test_miniapp_gallery_alchemy(ctx) -> None:
+    """Серия «Алхимик 2042»: 10 фото в галерее + отдача файла."""
+    import hashlib
+    import hmac
+    import json as _json
+    import urllib.parse
+
+    from src.miniapp_server import MiniAppServer
+
+    token = "123:TESTTOKEN"
+    await onboard(ctx, 7780, nsfw=True)
+    server = MiniAppServer(ctx.db, token)
+
+    user_json = _json.dumps({"id": 7780, "first_name": "T", "is_bot": False})
+    pairs = [("user", user_json), ("auth_date", "1700000000")]
+    data_check = "\n".join(f"{k}={v}" for k, v in sorted(pairs))
+    secret = hmac.new(b"WebAppData", token.encode(), hashlib.sha256).digest()
+    digest = hmac.new(secret, data_check.encode(), hashlib.sha256).hexdigest()
+    init = urllib.parse.urlencode(pairs + [("hash", digest)])
+
+    class _Req:
+        headers = {"x-init-data": init}
+        match_info: dict = {}
+
+        def __init__(self, name: str | None = None):
+            self.match_info = {"name": name} if name else {}
+
+        async def json(self):
+            return {}
+
+    resp = await server._api_gallery_static(_Req())
+    data = _json.loads(resp.body)
+    alchemy = [n for n in data["images"] if n.startswith("lilith_alchemy_")]
+    assert len(alchemy) >= 10, f"нужно 10 фото алхимика, найдено {len(alchemy)}"
+
+    resp2 = await server._api_gallery_static_image(_Req("lilith_alchemy_01_flask_red.png"))
+    assert resp2.status == 200
