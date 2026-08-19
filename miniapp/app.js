@@ -563,10 +563,12 @@
         const bossImages = staticImages.filter(function (n) { return n.indexOf("lilith_boss_") === 0; });
         // Серия «Развратная» (самая откровенная) — своя секция
         const naughtyImages = staticImages.filter(function (n) { return n.indexOf("lilith_naughty_") === 0; });
+        // Серия «Горячее аниме» (аниме-стиль, откровенно) — своя секция
+        const animeHotImages = staticImages.filter(function (n) { return n.indexOf("lilith_animehot_") === 0; });
         const artImages = staticImages.filter(function (n) {
           return n.indexOf("lilith_real_") !== 0 && n.indexOf("lilith_alchemy_") !== 0
             && n.indexOf("lilith_teacher_") !== 0 && n.indexOf("lilith_boss_") !== 0
-            && n.indexOf("lilith_naughty_") !== 0;
+            && n.indexOf("lilith_naughty_") !== 0 && n.indexOf("lilith_animehot_") !== 0;
         });
 
         function appendStaticSection(title, names) {
@@ -577,7 +579,7 @@
           el("gallery").appendChild(h);
           names.forEach(function (name) {
             const capIcon = title === "📸 Реальные фото" ? "📸"
-              : (title === "🔥 Развратная" ? "🔥"
+              : (title === "🔥 Развратная" || title === "🔥 Горячее аниме" ? "🔥"
               : (title === "🧪 Алхимик 2042" ? "🧪"
               : (title === "👩🏫 Строгая учительница" ? "👩🏫"
               : (title === "👠 Доминанта" ? "👠" : "✨"))));
@@ -605,6 +607,7 @@
 
         appendStaticSection("📸 Реальные фото", realImages);
         appendStaticSection("🔥 Развратная", naughtyImages);
+        appendStaticSection("🔥 Горячее аниме", animeHotImages);
         appendStaticSection("🧪 Алхимик 2042", alchemyImages);
         appendStaticSection("👩🏫 Строгая учительница", teacherImages);
         appendStaticSection("👠 Доминанта", bossImages);
