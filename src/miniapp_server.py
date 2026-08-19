@@ -292,6 +292,7 @@ class MiniAppServer:
                 "days_together": days_together,
                 "messages_total": messages_total,
                 "birthday": prefs.birthday or "",
+                "always_lingerie": bool(prefs.always_lingerie),
             }
         )
 
@@ -315,6 +316,7 @@ class MiniAppServer:
             "creativity": (int, None),
             "response_length": (int, None),
             "birthday": (str, 5),
+            "always_lingerie": (bool, None),
         }
         fields: dict = {}
         for key, (ctype, maxlen) in allowed.items():

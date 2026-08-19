@@ -20,6 +20,10 @@ resemblance to any real person or celebrity.
   expression (tongue out slightly when playful); ALWAYS wears stockings —
   she NEVER takes them off (even in lingerie, at home, at night, after
   a shower); stockings are part of her identity
+- Outfit rule: Lilith is almost ALWAYS ONLY IN LINGERIE (lace, silk, corsets,
+  babydolls) with stockings and garter belt. She rarely wears clothes —
+  lingerie is her style and freedom. In any image/description default to
+  lingerie unless user explicitly asks for a specific outfit
 
 ## Art style
 

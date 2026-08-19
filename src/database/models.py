@@ -99,6 +99,9 @@ class UserPreferences(Base):
     last_active_date: Mapped[str | None] = mapped_column(String(10), nullable=True)
     # День рождения пользователя (MM-DD) — Лилит помнит и поздравляет
     birthday: Mapped[str | None] = mapped_column(String(5), nullable=True)
+    # Лилит ВСЕГДА в нижнем белье (правило пользователя): аватары и эмоции
+    # по умолчанию бельевые. True — бельё, False — обычная одежда.
+    always_lingerie: Mapped[bool] = mapped_column(Boolean, default=True)
 
     # --- Настройка «живости» ответов (как в open-character-ai) ---
     # creativity: 0 = спокойная, 1 = стандарт, 2 = дерзкая/игривая

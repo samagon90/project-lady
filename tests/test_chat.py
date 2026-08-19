@@ -386,3 +386,35 @@ async def test_reply_emotion_new() -> None:
     assert _detect_reply_emotion("Я не понимаю, что происходит") == "confused"
     assert _detect_reply_emotion("Фух, какое облегчение") == "relief"
     assert _detect_reply_emotion("Пф, смотреть на тебя свысока") == "contempt"
+
+
+async def test_always_lingerie_avatar(ctx: AppContext, dp, bot, fake_llm: FakeLLM) -> None:
+    """«Лилит всегда в белье» (по умолчанию): аватар берётся из папки lingerie."""
+    await onboard(ctx, 9997, nsfw=True)
+    user_a = tg_user(9997, "Lingerie")
+    fake_llm.default_reply = "Привет, мой хороший!"
+    await dp.feed_update(bot, make_update_message(9997, user_a, "привет"))
+    photos = [item for item in bot.sent if item[0] == "photo"]
+    assert photos, "аватар должен прийти"
+    photo = photos[-1][2].get("photo")
+    path = getattr(photo, "path", "") or ""
+    # По умолчанию always_lingerie=True — путь должен вести в lingerie/
+    assert "lingerie" in path, f"аватар должен быть из lingerie/, а он: {path}"
+
+
+async def test_always_lingerie_off_uses_dressed(ctx: AppContext, dp, bot, fake_llm: FakeLLM) -> None:
+    """Если выключить «всегда в белье» — аватар обычный (одетый)."""
+    from src.database.repositories import PreferencesRepository, UserRepository
+
+    await onboard(ctx, 9998, nsfw=True)
+    async with ctx.db.session() as session:
+        user = await UserRepository(session).get_by_telegram_id(9998)
+        await PreferencesRepository(session).update_fields(user, always_lingerie=False)
+    user_a = tg_user(9998, "Dressed")
+    fake_llm.default_reply = "Привет!"
+    await dp.feed_update(bot, make_update_message(9998, user_a, "привет"))
+    photos = [item for item in bot.sent if item[0] == "photo"]
+    assert photos
+    photo = photos[-1][2].get("photo")
+    path = getattr(photo, "path", "") or ""
+    assert "lingerie" not in path, f"аватар не должен быть из lingerie/, а он: {path}"

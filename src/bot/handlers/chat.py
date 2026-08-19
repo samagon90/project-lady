@@ -348,6 +348,9 @@ async def _send_reply_with_avatar(
     async with app_ctx.db.session() as session:
         prefs = await PreferencesRepository(session).get_or_create(user)
     style = "anime" if prefs.image_style == "anime" else "realistic"
+    # Лилит ВСЕГДА в белье (правило пользователя): если включено — берём
+    # бельевую эмоцию, а не одетую.
+    always_lingerie = bool(getattr(prefs, "always_lingerie", True))
 
     reply_markup = None
     if swipe:
@@ -357,7 +360,19 @@ async def _send_reply_with_avatar(
             ]
         )
 
-    avatar = Path("assets/emotions") / f"lilith_{emotion}{'_anime' if style == 'anime' else ''}.png"
+    avatar = None
+    if always_lingerie:
+        # Бельевая эмоция: аниме-бельё → бельё → обычная (fallback)
+        if style == "anime":
+            avatar = Path("assets/emotions/lingerie") / f"lilith_{emotion}_anime_lingerie.png"
+            if not avatar.exists():
+                avatar = Path("assets/emotions/lingerie") / f"lilith_{emotion}_lingerie.png"
+        else:
+            avatar = Path("assets/emotions/lingerie") / f"lilith_{emotion}_lingerie.png"
+        if not avatar.exists():
+            avatar = Path("assets/emotions") / f"lilith_{emotion}{'_anime' if style == 'anime' else ''}.png"
+    if avatar is None:
+        avatar = Path("assets/emotions") / f"lilith_{emotion}{'_anime' if style == 'anime' else ''}.png"
     if not avatar.exists():
         # Запасной вариант: если файла эмоции нет — берём ДРУГУЮ существующую
         # эмоцию (по стабильному индексу), а не всегда один и тот же базовый

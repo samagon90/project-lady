@@ -377,6 +377,7 @@
     el("s-outfit").value = d.outfit || "";
     el("s-speech").value = d.speech_style || "";
     el("s-birthday").value = d.birthday || "";
+    el("s-lingerie").checked = d.always_lingerie !== false;
   }
 
   function fillLevel(d) {
@@ -402,6 +403,7 @@
       outfit: el("s-outfit").value.trim(),
       speech_style: el("s-speech").value.trim(),
       birthday: el("s-birthday").value.trim(),
+      always_lingerie: el("s-lingerie").checked,
     });
     el("save").disabled = true;
     el("save-msg").textContent = "Сохраняю…";
@@ -615,6 +617,11 @@
       fillSettings(d);
       fillLevel(d);
       currentStyle = d.image_style || "realistic";
+      // Лилит всегда в белье — по умолчанию показываем бельевой аватар
+      if (d.always_lingerie !== false && !currentClothes) {
+        currentClothes = "lingerie";
+        el("clothes-btn").textContent = "👗";
+      }
       // Подгружаем историю диалога
       return api("/api/history").then(function (h) {
         const messages = h.messages || [];
