@@ -102,6 +102,7 @@ class MiniAppServer:
         self.app.router.add_get("/api/achievements", self._api_achievements)
         self.app.router.add_get("/api/gallery/static", self._api_gallery_static)
         self.app.router.add_get("/api/gallery/static/image/{name}", self._api_gallery_static_image)
+        self.app.router.add_get("/api/novel", self._api_novel)
 
     # ------------------------------------------------------------- static
 
@@ -625,6 +626,31 @@ class MiniAppServer:
         if not path.exists():  # noqa: ASYNC240
             return web.Response(status=404, text="not found")
         return web.FileResponse(path)
+
+    async def _api_novel(self, request: web.Request) -> web.Response:
+        """Сценарий визуальной новеллы «Рандеву с похотливой незнакомкой» (18+)."""
+        uid = self._user_id(request)
+        if uid is None:
+            return web.json_response({"error": "unauthorized"}, status=401)
+        from src.novel import (
+            NOVEL_ID,
+            NOVEL_SCENARIO,
+            NOVEL_SUBTITLE,
+            NOVEL_TITLE,
+            validate_scenario,
+        )
+
+        errors = validate_scenario(NOVEL_SCENARIO)
+        return web.json_response(
+            {
+                "id": NOVEL_ID,
+                "title": NOVEL_TITLE,
+                "subtitle": NOVEL_SUBTITLE,
+                "start": "start",
+                "nodes": NOVEL_SCENARIO,
+                "errors": errors,
+            }
+        )
 
     # ------------------------------------------------------------- lifecycle
 

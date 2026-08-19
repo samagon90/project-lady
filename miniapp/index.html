@@ -36,11 +36,23 @@
 
   <nav id="mini-nav">
     <button class="tab active" data-tab="chat">💬<span>Чат</span></button>
+    <button class="tab" data-tab="novel">🎮<span>Новелла</span></button>
     <button class="tab" data-tab="scenes">🎭<span>Сцены</span></button>
-    <button class="tab" data-tab="diary">📖<span>Дневник</span></button>
     <button class="tab" data-tab="gallery">🖼<span>Галерея</span></button>
     <button class="tab" data-tab="settings">⚙️<span>Ещё</span></button>
   </nav>
+
+  <section id="tab-novel" class="panel novel-panel">
+    <div id="novel-box">
+      <div id="novel-image-wrap"><img id="novel-image" alt="Лилит"></div>
+      <div id="novel-text"></div>
+      <div id="novel-choices"></div>
+      <div id="novel-actions" style="display:none">
+        <button id="novel-restart" class="primary">🔄 Сыграть ещё раз</button>
+        <button id="novel-back" class="primary ghost">💬 Вернуться в чат</button>
+      </div>
+    </div>
+  </section>
 
   <section id="tab-scenes" class="panel">
     <h2>🎭 Сцены</h2>

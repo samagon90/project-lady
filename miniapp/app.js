@@ -272,6 +272,74 @@
     });
   }
 
+  // ============================== НОВЕЛЛА (v2.7) ==============================
+
+  let novelData = null;
+  let novelNodeId = null;
+
+  function loadNovel() {
+    const box = el("novel-box");
+    if (!box) return;
+    api("/api/novel")
+      .then(function (data) {
+        novelData = data;
+        if (data.errors && data.errors.length) {
+          el("novel-text").textContent = "⚠️ Сценарий повреждён: " + data.errors.join("; ");
+          return;
+        }
+        novelNodeId = data.start || "start";
+        renderNovelNode();
+      })
+      .catch(function (e) {
+        el("novel-text").textContent = "Не удалось загрузить новеллу: " + e.message;
+      });
+  }
+
+  function renderNovelNode() {
+    if (!novelData || !novelNodeId) return;
+    const node = novelData.nodes[novelNodeId];
+    if (!node) return;
+    const img = el("novel-image");
+    img.src = "/api/gallery/static/image/" + encodeURIComponent(node.image) + "?_=" + Date.now();
+    img.style.display = "block";
+
+    const textEl = el("novel-text");
+    let html = "<div class='novel-narrator'>" + escapeHtml(node.narrator || "") + "</div>";
+    if (node.lilith) {
+      html += "<div class='novel-lilith'>🖤 Лилит: " + escapeHtml(node.lilith) + "</div>";
+    }
+    textEl.innerHTML = html;
+
+    const choicesEl = el("novel-choices");
+    choicesEl.innerHTML = "";
+    (node.choices || []).forEach(function (choice) {
+      const btn = document.createElement("button");
+      btn.className = "novel-choice";
+      btn.textContent = choice[0];
+      btn.addEventListener("click", function () {
+        haptic();
+        novelNodeId = choice[1];
+        renderNovelNode();
+      });
+      choicesEl.appendChild(btn);
+    });
+
+    const isEnding = !!node.ending;
+    el("novel-actions").style.display = isEnding ? "block" : "none";
+    choicesEl.style.display = isEnding ? "none" : "flex";
+  }
+
+  el("novel-restart").addEventListener("click", function () {
+    haptic();
+    novelNodeId = novelData.start || "start";
+    renderNovelNode();
+  });
+
+  el("novel-back").addEventListener("click", function () {
+    haptic();
+    document.querySelector('.tab[data-tab="chat"]').click();
+  });
+
   // ============================== СЦЕНЫ (v2.0) ==============================
 
   const SCENES = [
@@ -361,6 +429,7 @@
       if (tab === "diary") loadDiary();
       if (tab === "settings") { loadStats(); loadMemory(); }
       if (tab === "scenes") renderScenes();
+      if (tab === "novel") loadNovel();
     });
   });
 

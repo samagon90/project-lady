@@ -334,3 +334,62 @@ def test_toon_emotion_files_exist() -> None:
     for emo in ("neutral", "passion", "flirt", "playful", "happy", "shy",
                 "tender", "excited", "sad", "surprised"):
         assert (folder / f"lilith_{emo}_toon.png").exists(), f"нет {emo} toon"
+
+
+def test_novel_scenario_valid() -> None:
+    """Сценарий новеллы целостен: все переходы существуют, есть концовки,
+    у каждого узла фото и варианты."""
+    from src.novel import NOVEL_SCENARIO, validate_scenario
+
+    errors = validate_scenario(NOVEL_SCENARIO)
+    assert not errors, f"ошибки сценария: {errors}"
+    # Ключевые правила Лилит в тексте сценария
+    import json
+
+    blob = json.dumps(NOVEL_SCENARIO, ensure_ascii=False).lower()
+    assert "чулк" in blob, "сценарий должен упоминать чулки"
+    assert "хвостик" in blob, "сценарий должен упоминать хвостики"
+
+
+async def test_miniapp_novel_endpoint(ctx) -> None:
+    """/api/novel отдаёт сценарий (только авторизованным)."""
+    import hashlib
+    import hmac
+    import json as _json
+    import urllib.parse
+
+    from src.miniapp_server import MiniAppServer
+
+    token = "123:TESTTOKEN"
+    await onboard(ctx, 7779, nsfw=True)
+    server = MiniAppServer(ctx.db, token)
+
+    user_json = _json.dumps({"id": 7779, "first_name": "T", "is_bot": False})
+    pairs = [("user", user_json), ("auth_date", "1700000000")]
+    data_check = "\n".join(f"{k}={v}" for k, v in sorted(pairs))
+    secret = hmac.new(b"WebAppData", token.encode(), hashlib.sha256).digest()
+    digest = hmac.new(secret, data_check.encode(), hashlib.sha256).hexdigest()
+    init = urllib.parse.urlencode(pairs + [("hash", digest)])
+
+    class _Req:
+        headers = {"x-init-data": init}
+
+        async def json(self):
+            return {}
+
+    resp = await server._api_novel(_Req())
+    assert resp.status == 200, resp.body
+    data = _json.loads(resp.body)
+    assert data["id"] == "rendezvous"
+    assert "Рандеву" in data["title"]
+    assert data["start"] == "start"
+    assert len(data["nodes"]) >= 10
+    assert not data["errors"]
+
+    # Фото сцен реально лежат в assets/gallery
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1]  # noqa: ASYNC240
+    for node in data["nodes"].values():
+        img = root / "assets" / "gallery" / node["image"]
+        assert img.exists(), f"нет фото сцены: {node['image']}"  # noqa: ASYNC240
