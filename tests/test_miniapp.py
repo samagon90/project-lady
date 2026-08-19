@@ -282,8 +282,11 @@ async def test_miniapp_gallery_static(ctx) -> None:
     resp = await server._api_gallery_static(_Req())
     assert resp.status == 200, resp.body
     data = _json.loads(resp.body)
-    assert len(data["images"]) >= 40, "в assets/gallery должно быть 40+ образов"
+    assert len(data["images"]) >= 60, "в assets/gallery должно быть 60+ образов"
     assert any(name.startswith("lilith_v2_") for name in data["images"])
+    # Реалистичные фото (как реальная девушка)
+    real = [n for n in data["images"] if n.startswith("lilith_real_")]
+    assert len(real) >= 10, f"нужно 10+ реалистичных фото, найдено {len(real)}"
 
     # Отдача файла
     resp2 = await server._api_gallery_static_image(_Req("lilith_v2_01_red_lace_bed.png"))

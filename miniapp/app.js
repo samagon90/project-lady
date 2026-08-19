@@ -480,13 +480,18 @@
           return;
         }
         el("gallery").innerHTML = "";
-        if (staticImages.length) {
+        // Реалистичные фото (как реальная девушка) — отдельная секция
+        const realImages = staticImages.filter(function (n) { return n.indexOf("lilith_real_") === 0; });
+        const artImages = staticImages.filter(function (n) { return n.indexOf("lilith_real_") !== 0; });
+
+        function appendStaticSection(title, names) {
+          if (!names.length) return;
           const h = document.createElement("h3");
           h.className = "gallery-header";
-          h.textContent = "✨ Образы Лилит";
+          h.textContent = title;
           el("gallery").appendChild(h);
-          staticImages.forEach(function (name) {
-            const card = galleryCard("/api/gallery/static/image/" + encodeURIComponent(name), "✨", "Lilith");
+          names.forEach(function (name) {
+            const card = galleryCard("/api/gallery/static/image/" + encodeURIComponent(name), title === "📸 Реальные фото" ? "📸" : "✨", "Lilith");
             const wear = document.createElement("button");
             wear.className = "wear-btn";
             wear.textContent = "👗 Надеть";
@@ -507,6 +512,9 @@
             el("gallery").appendChild(card);
           });
         }
+
+        appendStaticSection("📸 Реальные фото", realImages);
+        appendStaticSection("✨ Образы Лилит", artImages);
         if (userImages.length) {
           const h = document.createElement("h3");
           h.className = "gallery-header";
