@@ -496,15 +496,14 @@ def sign_v1(apk: Path) -> tuple:
         sf_lines.append(f"SHA-256-Digest: {b64sha1(sections[path].encode('utf-8'))}")
     cert_sf = "\r\n".join(sf_lines) + "\r\n"
 
-    # 5. CERT.RSA — PKCS#7 SignedData над CERT.SF
-    from cryptography.hazmat.primitives.serialization import Encoding, pkcs7
+    # 5. CERT.RSA — CMS/PKCS#7 SignedData КАК У JARSIGNER:
+    #    signedAttrs (contentType, messageDigest, signingTime) + подпись
+    #    RSA-PKCS1v15-SHA256 по DER(SignedAttributes). Это ровно то, что
+    #    проверяет Android (раньше cryptography подписывал content напрямую —
+    #    Android отклонял: «пакет повреждён»).
+    from cms_sign import build_pkcs7_signed_data
 
-    rsa_der = (
-        pkcs7.PKCS7SignatureBuilder()
-        .set_data(cert_sf.encode("utf-8"))
-        .add_signer(cert, key, hashes.SHA256())
-        .sign(Encoding.DER, [pkcs7.PKCS7Options.Binary])
-    )
+    rsa_der = build_pkcs7_signed_data(cert, key, cert_sf.encode("utf-8"))
 
     # 6. Пересобираем APK с META-INF
     tmp = apk.with_suffix(".unsigned.apk")
