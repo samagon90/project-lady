@@ -1,0 +1,50 @@
+name: Build APK (offline novel)
+
+on:
+  push:
+    tags: ['novel-apk-*']
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Generate offline web assets (scenarios + images)
+        run: python3 scripts/build_novel_offline.py
+
+      - name: Copy web assets into Android assets
+        run: |
+          mkdir -p novel_app/android/app/src/main/assets/novel
+          cp -r novel_app/web/* novel_app/android/app/src/main/assets/novel/
+          echo "--- assets ---"
+          ls novel_app/android/app/src/main/assets/novel/ | head
+          echo "images: $(ls novel_app/android/app/src/main/assets/novel/images | wc -l)"
+
+      - name: Build APK
+        working-directory: novel_app/android
+        run: gradle assembleRelease --no-daemon
+
+      - name: Upload APK to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: novel_app/android/app/build/outputs/apk/release/app-release.apk
+          name: "Лилит: Визуальная новелла (офлайн APK)"
+          body: |
+            📱 **Лилит: Визуальная новелла** — автономное Android-приложение.
+            Работает **полностью офлайн** (без интернета и без бота).
+            6 сценариев, 18+ гейт, сохранение прогресса.
+
+            Установка: скачайте APK → откройте → разрешите установку
+            из неизвестных источников → играйте.

@@ -23,3 +23,6 @@ bot.db
 htmlcov/
 dist/
 build/
+
+# Автономная новелла: генерируется скриптом scripts/build_novel_offline.py
+novel_app/web/
