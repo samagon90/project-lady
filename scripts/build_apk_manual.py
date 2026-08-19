@@ -153,7 +153,7 @@ class AXMLWriter:
         # namespace start (android)
         ns_uri = self.sp.index["http://schemas.android.com/apk/res/android"]
         ns_prefix = self.sp.index["android"]
-        chunks += struct.pack("<HHIIIII", 0x0100, 16, 24, 1, 0, ns_prefix, ns_uri)
+        chunks += struct.pack("<HHIIIII", 0x0100, 16, 24, 1, 0xFFFFFFFF, ns_prefix, ns_uri)
 
         def emit(node: dict) -> None:
             nonlocal chunks
@@ -170,15 +170,20 @@ class AXMLWriter:
                     raw = self.sp.index.get(str(value), 0xFFFFFFFF)
                 else:
                     raw = 0xFFFFFFFF
+                # ВАЖНО: для строковых атрибутов typedValue.data = индекс строки
+                # (как и raw). Иначе Android читает неверные значения и
+                # package теряется -> «не удалось обработать пакет».
+                if vtype == TYPE_STRING and raw != 0xFFFFFFFF:
+                    data = raw
                 tv = struct.pack("<HBB", 8, 0, vtype) + struct.pack("<I", data)
                 body += struct.pack("<III", a_ns, a_name, raw) + tv
             chunks += struct.pack("<HHIII", 0x0102, 16, 16 + len(body), 1, 0) + body
             for c in node.get("children", []):
                 emit(c)
-            chunks += struct.pack("<HHIIIII", 0x0103, 16, 24, 1, 0, ns_i, tag_i)
+            chunks += struct.pack("<HHIIIII", 0x0103, 16, 24, 1, 0xFFFFFFFF, ns_i, tag_i)
 
         emit(root)
-        chunks += struct.pack("<HHIIIII", 0x0101, 16, 24, 1, 0, ns_prefix, ns_uri)
+        chunks += struct.pack("<HHIIIII", 0x0101, 16, 24, 1, 0xFFFFFFFF, ns_prefix, ns_uri)
 
         header = struct.pack("<HHI", 0x0003, 8, 8 + len(chunks))
         return header + bytes(chunks)
@@ -204,6 +209,7 @@ _RES_IDS = {
 
 # Типы значений
 TYPE_STRING = 0x03
+TYPE_INT_DEC = 0x10
 TYPE_INT_BOOLEAN = 0x12
 TYPE_REFERENCE = 0x01
 
@@ -215,11 +221,21 @@ def build_manifest() -> bytes:
         "attrs": [
             (None, "package", "com.lilith.novel", TYPE_STRING, 0),
             ("http://schemas.android.com/apk/res/android", "versionCode",
-             "1", TYPE_INT_BOOLEAN, 1),
+             "1", TYPE_INT_DEC, 1),
             ("http://schemas.android.com/apk/res/android", "versionName",
              "1.0.0", TYPE_STRING, 0),
         ],
         "children": [
+            {
+                "tag": "uses-sdk",
+                "attrs": [
+                    ("http://schemas.android.com/apk/res/android", "minSdkVersion",
+                     "21", TYPE_INT_DEC, 21),
+                    ("http://schemas.android.com/apk/res/android", "targetSdkVersion",
+                     "28", TYPE_INT_DEC, 28),
+                ],
+                "children": [],
+            },
             {
                 "tag": "application",
                 "attrs": [
@@ -558,7 +574,11 @@ def sign_v2(apk: Path, key, cert) -> None:
     # --- Signed data и подпись ---
     digests_entry = struct.pack("<I", ALG) + lp(digest)
     signed = lp(digests_entry) + lp(cert_der) + struct.pack("<II", 0xFFFFFFFF, 0xFFFFFFFF) + lp(b"")
-    sig = key.sign(signed, padding.PKCS1v15(), hashes.SHA256())
+    # По спецификации v2 подпись считается по signed-данным с префиксом
+    # 0xA5 + uint32(длина): content = 0xA5 || len(signed) || signed.
+    # Раньше подписывался сам signed без префикса — Android отклонял APK.
+    sign_content = b"\xa5" + struct.pack("<I", len(signed)) + signed
+    sig = key.sign(sign_content, padding.PKCS1v15(), hashes.SHA256())
     assert len(sig) == 256
     sig_entry = struct.pack("<I", ALG) + lp(sig)
     # signatures — это ПОСЛЕДОВАТЕЛЬНОСТЬ length-prefixed подписей
@@ -566,7 +586,10 @@ def sign_v2(apk: Path, key, cert) -> None:
     value = lp(signer)
 
     # --- APK Signing Block ---
-    pairs = struct.pack("<Q", 4 + len(value)) + struct.pack("<I", ID_SIG) + value
+    # ВАЖНО: pair_len включает СВОЁ поле длины (8) + id (4) + value.
+    # Раньше было 4 + len(value) — Android читал value на 8 байт короче,
+    # подпись обрезалась -> «не удалось обработать пакет».
+    pairs = struct.pack("<Q", 12 + len(value)) + struct.pack("<I", ID_SIG) + value
     size1 = len(pairs) + 8 + len(MAGIC)
     block = struct.pack("<Q", size1) + pairs + struct.pack("<Q", size1) + MAGIC
     assert len(block) == block_len, (len(block), block_len)
