@@ -81,7 +81,8 @@ def _set_elements(set_tlv: bytes) -> bytes:
     assert set_tlv[0] == 0x31, "ожидался SET"
     # пропускаем tag и length
     p = 1
-    b = set_tlv[p]; p += 1
+    b = set_tlv[p]
+    p += 1
     if b & 0x80:
         n = b & 0x7F
         p += n
