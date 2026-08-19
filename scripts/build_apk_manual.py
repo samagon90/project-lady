@@ -624,6 +624,29 @@ def _sign_with_apksigner(apk: Path, java: Path) -> None:
     print("apksigner: подпись v1+v2 (официальная реализация apksig)")
 
 
+def _sign_with_official_apksigner(apk: Path) -> None:
+    """Подписывает APK официальным apksigner (v1+v2+v3)."""
+    import subprocess as _sp
+
+    apksigner = ROOT / "novel_app" / "apksigner.jar"
+    ks = ROOT / "novel_app" / "lilith.keystore"
+    if not apksigner.exists() or not ks.exists() or JAVA_HOME is None:
+        # fallback: старая самописная подпись v1+v2
+        _key, _cert = sign_v1(apk)
+        sign_v2(apk, _key, _cert)
+        return
+    tmp = apk.with_suffix(".unsigned.apk")
+    apk.rename(tmp)
+    r = _sp.run([str(JAVA_HOME / "bin" / "java"), "-jar", str(apksigner), "sign",
+                 "--ks", str(ks), "--ks-pass", "pass:lilith123",
+                 "--ks-key-alias", "lilith", "--key-pass", "pass:lilith123",
+                 "--out", str(apk), str(tmp)], capture_output=True, text=True)
+    if r.returncode != 0:
+        raise SystemExit(f"apksigner: {r.stdout[-800:]}\n{r.stderr[-800:]}")
+    tmp.unlink()
+    print("apksigner: подпись v1+v2+v3 (официальная)")
+
+
 def datetime_now_utc():
     from datetime import UTC, datetime
 
@@ -694,9 +717,11 @@ def main() -> None:
             if f.is_file():
                 z.write(f, "assets/novel/" + f.relative_to(WORK / "novel").as_posix())
 
-    # 5. Подпись: схема v1 (JAR) с ИСПРАВЛЕННЫМИ диджестами секций.
-    #    (v2-блок не добавляем: targetSdk 28, Android принимает v1.)
-    sign_v1(OUT)
+    # 5. Подпись: ОФИЦИАЛЬНЫЙ apksigner (v1+v2+v3) — гарантия установки.
+    #    Самописные подписи давали «пакет недействителен» — apksigner делает
+    #    ровно то, что проверяет Android. Keystore сохранён в репозитории,
+    #    чтобы обновления имели ту же подпись.
+    _sign_with_official_apksigner(OUT)
 
     size_mb = OUT.stat().st_size / 1024 / 1024
     print(f"\n✅ APK собран и подписан: {OUT} ({size_mb:.1f} МБ)")

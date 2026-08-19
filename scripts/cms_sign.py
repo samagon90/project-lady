@@ -76,6 +76,18 @@ def null() -> bytes:
     return b"\x05\x00"
 
 
+def _set_elements(set_tlv: bytes) -> bytes:
+    """Возвращает содержимое SET (элементы без 0x31-заголовка)."""
+    assert set_tlv[0] == 0x31, "ожидался SET"
+    # пропускаем tag и length
+    p = 1
+    b = set_tlv[p]; p += 1
+    if b & 0x80:
+        n = b & 0x7F
+        p += n
+    return set_tlv[p:]
+
+
 def utctime(dt: datetime) -> bytes:
     s = dt.strftime("%y%m%d%H%M%SZ").encode()
     return tlv(0x17, s)
@@ -109,15 +121,22 @@ def build_pkcs7_signed_data(cert: x509.Certificate, key, content: bytes) -> byte
         _attr(OID_MESSAGE_DIGEST, octets(digest)),
         _attr(OID_SIGNING_TIME, utctime(now)),
     )
-    # SignedAttributes — это [0] IMPLICIT SET
-    signed_attrs_der = tlv(0xA0, signed_attrs)
+    # SignedAttributes в SignerInfo — [0] IMPLICIT SET: тег A0, элементы напрямую.
+    signed_attrs_der = tlv(0xA0, _set_elements(signed_attrs))
+    # НО подпись (как у jarsigner) считается по DER-кодировке САМОГО ТИПА
+    # SignedAttrs = SET OF Attribute, т.е. с тегом 0x31, а не A0!
+    # (sun.security.pkcs.SignerInfo подписывает putOrderedSetOf(DerValue.tag_SetOf, ...))
+    v1_signature_input = tlv(0x31, _set_elements(signed_attrs))
 
-    # 2. Подпись по DER(SignedAttributes)
-    signature = key.sign(signed_attrs_der, padding.PKCS1v15(), hashes.SHA256())
+    # 2. Подпись по DER(SignedAttributes) в SET-форме (как jarsigner)
+    signature = key.sign(v1_signature_input, padding.PKCS1v15(), hashes.SHA256())
 
     # 3. Сертификат и issuerAndSerialNumber
     cert_der = cert.public_bytes(serialization.Encoding.DER)
-    issuer_der, serial = _extract_issuer_serial(cert_der)
+    # issuer берём ГОТОВЫМ DER из объекта сертификата (ручной парсер
+    # возвращал мусор -> apksig падал с X500 RDN).
+    issuer_der = cert.issuer.public_bytes()   # полный DER Name (с 0x30)
+    serial = cert.serial_number
     sid = seq(issuer_der, integer(serial))
 
     # 4. SignerInfo
@@ -135,7 +154,7 @@ def build_pkcs7_signed_data(cert: x509.Certificate, key, content: bytes) -> byte
         integer(1),                                   # version CMS
         sset(seq(oid(OID_SHA256), null())),           # digestAlgorithms
         seq(oid(ID_DATA)),                            # encapContentInfo (без content)
-        tlv(0xA0, sset(cert_der)),                    # certificates [0] IMPLICIT SET
+        tlv(0xA0, cert_der),                          # certificates [0] IMPLICIT: сразу cert
         sset(signer_info),                            # signerInfos
     )
 
