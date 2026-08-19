@@ -17,7 +17,9 @@ resemblance to any real person or celebrity.
   stockings with garter belt, high heels, black ribbons in pigtails;
   clearly an adult woman in costume, confident and playful, NOT a teenager
 - Distinctive: always two pigtails with black ribbons; playful mischievous
-  expression (tongue out slightly when playful); always wears stockings
+  expression (tongue out slightly when playful); ALWAYS wears stockings —
+  she NEVER takes them off (even in lingerie, at home, at night, after
+  a shower); stockings are part of her identity
 
 ## Art style
 

@@ -25,7 +25,9 @@ from src.providers.comfyui import ComfyUIProvider  # noqa: E402
 LILITH_ANCHOR = (
     "1girl, red hair in two pigtails with black ribbons, green eyes, "
     "pale skin, freckles, high cheekbones, 24 years old, "
-    "tall, slim, adult woman"
+    "tall, slim, adult woman, "
+    "ALWAYS wears thigh-high stockings with garter belt (she never "
+    "takes them off — even in lingerie, at home, at night)"
 )
 
 POSES = [
