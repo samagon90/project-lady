@@ -632,9 +632,18 @@ def main() -> None:
     run([java, "-jar", SMALI_JAR, smali_file, "-o", WORK / "classes.dex"])
     print("classes.dex:", (WORK / "classes.dex").stat().st_size, "байт")
 
-    # 3. Манифест
-    manifest = build_manifest()
+    # 3. Манифест — НАСТОЯЩИЙ, сгенерированный aapt2 (resource ID верные).
+    #    Ручной генератор давал сдвинутые ID атрибутов -> Android отклонял пакет.
+    manifest = (ROOT / "novel_app" / "AndroidManifest.bin").read_bytes()
     (WORK / "AndroidManifest.xml").write_bytes(manifest)
+    arsc = ROOT / "novel_app" / "resources.arsc"
+    if arsc.exists():
+        (WORK / "resources.arsc").write_bytes(arsc.read_bytes())
+        print("resources.arsc:", arsc.stat().st_size, "байт")
+    res_src = ROOT / "novel_app" / "res"
+    if res_src.exists():
+        shutil.copytree(res_src, WORK / "res")
+        print("res/: иконки скопированы")
     print("AndroidManifest.xml:", len(manifest), "байт")
     # самопроверка: парсим наш же манифест
     try:
@@ -652,13 +661,21 @@ def main() -> None:
     with zipfile.ZipFile(OUT, "w", zipfile.ZIP_STORED) as z:
         z.write(WORK / "AndroidManifest.xml", "AndroidManifest.xml")
         z.write(WORK / "classes.dex", "classes.dex")
+        arsc = WORK / "resources.arsc"
+        if arsc.exists():
+            z.write(arsc, "resources.arsc")
+        res_dir = WORK / "res"
+        if res_dir.exists():
+            for f in sorted(res_dir.rglob("*")):
+                if f.is_file():
+                    z.write(f, "res/" + f.relative_to(res_dir).as_posix())
         for f in sorted((WORK / "novel").rglob("*")):
             if f.is_file():
                 z.write(f, "assets/novel/" + f.relative_to(WORK / "novel").as_posix())
 
-    # 5. Подпись: схема v1 (JAR) + схема v2 (обязательна для Android 7+)
-    _key, _cert = sign_v1(OUT)
-    sign_v2(OUT, _key, _cert)
+    # 5. Подпись: схема v1 (JAR). v2-блок НЕ добавляем: targetSdk 28 —
+    #    Android принимает v1-only, а битый v2-блок заставлял отклонять пакет.
+    sign_v1(OUT)
 
     size_mb = OUT.stat().st_size / 1024 / 1024
     print(f"\n✅ APK собран и подписан: {OUT} ({size_mb:.1f} МБ)")
