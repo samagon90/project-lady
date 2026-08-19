@@ -349,7 +349,7 @@ async def _send_reply_with_avatar(
         )
     async with app_ctx.db.session() as session:
         prefs = await PreferencesRepository(session).get_or_create(user)
-    style = "anime" if prefs.image_style == "anime" else "realistic"
+    style = prefs.image_style if prefs.image_style in ("anime", "toon") else "realistic"
     # Лилит ВСЕГДА в белье (правило пользователя): если включено — берём
     # бельевую эмоцию, а не одетую.
     always_lingerie = bool(getattr(prefs, "always_lingerie", True))
@@ -363,7 +363,14 @@ async def _send_reply_with_avatar(
         )
 
     avatar = None
-    if always_lingerie:
+    if style == "toon":
+        # Мультяшный стиль (Джессика Рэббит): toon-эмоция → реалистичное бельё
+        avatar = Path("assets/emotions/toon") / f"lilith_{emotion}_toon.png"
+        if not avatar.exists():
+            avatar = Path("assets/emotions/lingerie") / f"lilith_{emotion}_lingerie.png"
+        if not avatar.exists():
+            avatar = Path("assets/emotions/toon") / "lilith_neutral_toon.png"
+    elif always_lingerie:
         # Бельевая эмоция: аниме-бельё → бельё → обычная (fallback)
         if style == "anime":
             avatar = Path("assets/emotions/lingerie") / f"lilith_{emotion}_anime_lingerie.png"

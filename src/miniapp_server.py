@@ -180,7 +180,27 @@ class MiniAppServer:
             "confused": "shy",
         }
 
-        if style == "anime" and clothes == "lingerie":
+        if style == "toon":
+            # Мультяшный стиль (в духе Джессики Рэббит): только в белье.
+            # Если файла эмоции нет — ближайшая существующая toon-эмоция,
+            # затем реалистичная бельевая, затем одетая toon/обычная.
+            _TOON_FALLBACK = {
+                "serious": "neutral", "surprised": "happy", "proud": "neutral",
+                "jealous": "neutral", "bored": "neutral", "sleepy": "shy",
+                "crying": "shy", "scared": "shy", "disgust": "neutral",
+                "contempt": "neutral", "relief": "happy", "thinking": "flirt",
+                "confused": "shy", "sad": "shy", "angry": "neutral",
+                "excited": "happy", "tender": "shy",
+            }
+            alt = _TOON_FALLBACK.get(emotion, emotion)
+            base = Path("assets/emotions/toon") / f"lilith_{emotion}_toon.png"
+            if not base.exists():
+                base = Path("assets/emotions/toon") / f"lilith_{alt}_toon.png"
+            if not base.exists():
+                base = Path("assets/emotions/lingerie") / f"lilith_{emotion}_lingerie.png"
+            if not base.exists():
+                base = Path("assets/emotions/toon") / "lilith_neutral_toon.png"
+        elif style == "anime" and clothes == "lingerie":
             # Лилит В БЕЛЬЕ, аниме-стиль: сначала точная эмоция, затем ближайшая
             # аниме-бельевая, затем реалистичная бельевая, затем одетая аниме.
             alt = _ANIME_LINGERIE_FALLBACK.get(emotion, emotion)
@@ -332,7 +352,7 @@ class MiniAppServer:
             if maxlen and isinstance(value, str):
                 value = value[:maxlen]
             fields[key] = value
-        if "image_style" in fields and fields["image_style"] not in ("realistic", "anime"):
+        if "image_style" in fields and fields["image_style"] not in ("realistic", "anime", "toon"):
             fields.pop("image_style")
         if "mode" in fields and fields["mode"] not in (0, 1, 2, 3):
             fields.pop("mode")

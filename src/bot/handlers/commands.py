@@ -377,11 +377,12 @@ async def cmd_style(message: Message, bot: Bot, app_ctx: AppContext, user: DbUse
 
     async with app_ctx.db.session() as session:
         prefs = await PreferencesRepository(session).get_or_create(user)
+    style_labels = {"realistic": "📸 Реалистичный", "anime": "🖌 Рисованный (аниме)", "toon": "🎬 Мультяшный (Джессика)"}
     await bot.send_message(
         chat_id=message.chat.id,
         text=(
             "🎨 Стиль изображений и аватара Лилит:\n"
-            f"Сейчас: {'📸 реалистичный' if prefs.image_style == 'realistic' else '🖌 рисованный (аниме)'}\n\n"
+            f"Сейчас: {style_labels.get(prefs.image_style, '📸 реалистичный')}\n\n"
             "Переключай на лету:"
         ),
         reply_markup=InlineKeyboardMarkup(
@@ -389,7 +390,8 @@ async def cmd_style(message: Message, bot: Bot, app_ctx: AppContext, user: DbUse
                 [
                     InlineKeyboardButton(text="📸 Реалистичный", callback_data="style:realistic"),
                     InlineKeyboardButton(text="🖌 Рисованный (аниме)", callback_data="style:anime"),
-                ]
+                ],
+                [InlineKeyboardButton(text="🎬 Мультяшный (как Джессика)", callback_data="style:toon")],
             ]
         ),
     )
@@ -402,19 +404,20 @@ async def cb_style(cb: CallbackQuery, bot: Bot, app_ctx: AppContext, user: DbUse
         return
     assert user is not None
     style = (cb.data or "").removeprefix("style:")
-    if style not in ("realistic", "anime"):
+    if style not in ("realistic", "anime", "toon"):
         await bot.answer_callback_query(callback_query_id=cb.id, text="Неизвестный стиль")
         return
     async with app_ctx.db.session() as session:
         await PreferencesRepository(session).update_fields(user, image_style=style)
-    label = "реалистичный" if style == "realistic" else "аниме"
+    label = {"realistic": "реалистичный", "anime": "аниме", "toon": "мультяшный"}[style]
     await bot.answer_callback_query(callback_query_id=cb.id, text=f"Стиль: {label}")
     # Показываем аватар в новом стиле
-    avatar = (
-        app_ctx.settings.resolve_path(__import__("pathlib").Path("assets/lilith_avatar_anime.png"))
-        if style == "anime"
-        else app_ctx.settings.resolve_path(__import__("pathlib").Path("assets/lilith_avatar.png"))
-    )
+    avatar_map = {
+        "realistic": "assets/lilith_avatar.png",
+        "anime": "assets/lilith_avatar_anime.png",
+        "toon": "assets/emotions/toon/lilith_neutral_toon.png",
+    }
+    avatar = app_ctx.settings.resolve_path(__import__("pathlib").Path(avatar_map[style]))
     if avatar.exists():
         await bot.send_photo(
             chat_id=cb.message.chat.id if cb.message else user.telegram_user_id,

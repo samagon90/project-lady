@@ -115,6 +115,9 @@ migrations/                # Alembic
   описаниях: томный голодный взгляд, приоткрытые губы, румянец, выгнутая
   спина, страстная поза. Эмоция по умолчанию — passion (не neutral).
   При генерации добавляй «aroused, heavy-lidded eyes, parted lips, flushed».
+- Форматы файлов (мультяшный стиль toon — в духе Джессики Рэббит,
+  классический рисованный гламур 40-х, пышные формы, длинные ноги):
+  - мультяшный в белье: `assets/emotions/toon/lilith_{emotion}_toon.png`
 - Форматы файлов:
   - реалистичный одетый: `lilith_{emotion}.png`
   - реалистичный в белье: `lingerie/lilith_{emotion}_lingerie.png`

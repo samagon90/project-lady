@@ -101,7 +101,9 @@
     img.onload = function () { img.style.opacity = "1"; };
     // cache-bust: гарантирует, что браузер перерисует фото при каждом ответе
     const bust = "&_=" + Date.now();
-    img.src = "/api/avatar?style=" + currentStyle + "&emotion=" + currentEmotion + stagePath + clothesPath + bust;
+    // toon-стиль: аватар всегда из папки toon (бельевой)
+    const styleParam = currentStyle === "toon" ? "toon" : currentStyle;
+    img.src = "/api/avatar?style=" + styleParam + "&emotion=" + currentEmotion + stagePath + clothesPath + bust;
     const tag = el("emotion-tag");
     if (tag) tag.textContent = EMOTION_LABELS[currentEmotion] || "😌";
     const mood = el("mood-tag");

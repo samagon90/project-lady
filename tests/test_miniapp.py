@@ -302,3 +302,34 @@ async def test_miniapp_gallery_static(ctx) -> None:
     # Защита от path traversal
     resp3 = await server._api_gallery_static_image(_Req("../config.py"))
     assert resp3.status == 404
+
+
+async def test_miniapp_avatar_toon_style(ctx) -> None:
+    """Мультяшный стиль (toon): все 23 эмоции отдают 200 (фолбэк-цепочка)."""
+    import aiohttp
+
+    server = MiniAppServer(ctx.db, "123:TESTTOKEN")
+    await server.start()
+    emotions = ["neutral", "flirt", "passion", "playful", "tender", "serious",
+                "happy", "sad", "angry", "surprised", "shy", "proud", "jealous",
+                "bored", "excited", "sleepy", "crying", "scared", "disgust",
+                "contempt", "relief", "thinking", "confused"]
+    try:
+        async with aiohttp.ClientSession() as session:
+            for emo in emotions:
+                async with session.get(
+                    f"http://127.0.0.1:8001/api/avatar?style=toon&emotion={emo}"
+                ) as r:
+                    assert r.status == 200, f"toon {emo} -> {r.status}"
+    finally:
+        await server.stop()
+
+
+def test_toon_emotion_files_exist() -> None:
+    """Ключевые toon-эмоции реально лежат в папке."""
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1]
+    folder = root / "assets/emotions/toon"
+    for emo in ("neutral", "passion", "flirt", "playful", "happy", "shy"):
+        assert (folder / f"lilith_{emo}_toon.png").exists(), f"нет {emo} toon"
